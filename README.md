@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-The dashboard currently runs entirely in the browser with representative data. The production-oriented Postgres model is in `db/schema.sql`; ingestion and API wiring are the next implementation slice.
+The dashboard now persists normalized listings and immutable valuation results through Cloudflare D1. `POST /api/listings` validates and stores a listing plus its valuation; `GET /api/listings` returns the eight most recent analyses. The broader production-oriented Postgres model remains in `db/schema.sql` for the later FastAPI service.
 
 ## Enforced economics
 
@@ -19,3 +19,7 @@ strategic score = economic alpha + liquidity adjustment
 ```
 
 The offer ceiling preserves a minimum $200 economic alpha. Human approval is mandatory in both the interface and database model.
+
+## Current ingestion contract
+
+The MVP accepts a listing URL, pasted listing text, confirmed brand/model/reference, asking price, and trade inputs. Reference normalization is deliberately human-confirmed for now; marketplace fetching and model-assisted extraction come next.

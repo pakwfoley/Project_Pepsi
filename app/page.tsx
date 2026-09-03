@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, ChevronRight, CircleDollarSign, Gauge, Search, ShieldAlert, Sparkles, Watch } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ChevronRight, CircleDollarSign, Database, Gauge, Loader2, Search, ShieldAlert, Sparkles, Watch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
 type Analysis = { receivedQlv: number; givenQlv: number; cashPaid: number; costs: number; riskPenalty: number; liquidityBonus: number };
+type SavedListing = { id: string; source: string; brand: string; model: string; reference: string; askCents: number; confidence: number; economicAlphaCents: number; strategicScoreCents: number; createdAt: string };
 const initial: Analysis = { receivedQlv: 2750, givenQlv: 2450, cashPaid: 150, costs: 50, riskPenalty: 75, liquidityBonus: 140 };
 const stages = ['Discovered', 'Valued', 'Qualify seller', 'Ask questions', 'Opening offer', 'Counter', 'Pending approval'];
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -14,8 +15,15 @@ const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'curren
 export default function Home() {
   const [analysis, setAnalysis] = useState(initial);
   const [listing, setListing] = useState('https://www.reddit.com/r/Watchexchange/example');
+  const [brand, setBrand] = useState('Omega');
+  const [model, setModel] = useState('Seamaster Diver 300M');
+  const [reference, setReference] = useState('210.30.42.20.01.001');
+  const [ask, setAsk] = useState(3200);
+  const [rawText, setRawText] = useState('Full set, black dial, bracelet. Seller reports normal wear and no recent service.');
   const [stage, setStage] = useState(2);
   const [notice, setNotice] = useState('');
+  const [savedListings, setSavedListings] = useState<SavedListing[]>([]);
+  const [saving, setSaving] = useState(false);
   const economicAlpha = useMemo(() => analysis.receivedQlv - analysis.givenQlv - analysis.cashPaid - analysis.costs - analysis.riskPenalty, [analysis]);
   const strategicScore = economicAlpha + analysis.liquidityBonus;
   const maxCash = Math.max(0, analysis.receivedQlv - analysis.givenQlv - analysis.costs - analysis.riskPenalty - 200);
@@ -24,7 +32,29 @@ export default function Home() {
     setAnalysis((current) => ({ ...current, [key]: Number.isFinite(parsed) ? parsed : 0 }));
   };
 
+  const loadListings = async () => {
+    const response = await fetch('/api/listings');
+    if (!response.ok) return;
+    const data = await response.json() as { listings: SavedListing[] };
+    setSavedListings(data.listings);
+  };
+
+  const analyzeListing = async () => {
+    setSaving(true); setNotice('');
+    try {
+      const response = await fetch('/api/listings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+        url: listing, rawText, brand, model, reference, ask, ...analysis,
+      }) });
+      const data = await response.json() as { error?: string; confidence?: number };
+      if (!response.ok) throw new Error(data.error ?? 'Could not save listing.');
+      setNotice(`Listing analyzed and saved · ${Math.round((data.confidence ?? 0) * 100)}% reference confidence`);
+      setStage(1); await loadListings();
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Could not save listing.'); }
+    finally { setSaving(false); }
+  };
+
   useEffect(() => {
+    void loadListings();
     const modelContext = (document as Document & { modelContext?: { registerTool?: (tool: unknown, options?: unknown) => void } }).modelContext;
     if (!modelContext?.registerTool) return;
     const lifecycle = new AbortController();
@@ -55,17 +85,23 @@ export default function Home() {
     <div className="mx-auto max-w-[1480px] px-5 py-6 lg:px-9 lg:py-8">
       <section className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Opportunity workspace</p><h1 className="max-w-3xl font-heading text-3xl font-semibold tracking-[-.04em] md:text-4xl">Know the walk-away number before you negotiate.</h1></div>
-        <div className="flex min-w-0 gap-2 lg:w-[480px]"><Input aria-label="Listing URL" value={listing} onChange={(e) => setListing(e.target.value)} className="h-11 bg-white text-sm shadow-sm" /><Button className="h-11 bg-[#0a68a5] px-4 hover:bg-[#08598d]" onClick={() => { setNotice('Listing staged for analysis'); setStage(1); }}><Search /> Analyze</Button></div>
+        <div className="flex min-w-0 gap-2 lg:w-[480px]"><Input aria-label="Listing URL" value={listing} onChange={(e) => setListing(e.target.value)} className="h-11 bg-white text-sm shadow-sm" /><Button disabled={saving} className="h-11 bg-[#0a68a5] px-4 hover:bg-[#08598d]" onClick={analyzeListing}>{saving ? <Loader2 className="animate-spin" /> : <Search />} Analyze & save</Button></div>
       </section>
       {notice && <div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900"><CheckCircle2 className="size-4" />{notice}</div>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]">
         <section className="overflow-hidden rounded-[22px] border bg-card shadow-[0_12px_40px_rgba(15,35,55,.08)]">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b bg-[#f8fbfd] p-5 md:p-6">
-            <div className="flex gap-4"><div className="grid size-14 place-items-center rounded-2xl bg-[#07101d] text-cyan-300"><Watch className="size-6" /></div><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold tracking-[-.03em]">Omega Seamaster Diver 300M</h2><span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">96% match</span></div><p className="mt-1 font-mono text-sm text-slate-500">210.30.42.20.01.001 · black dial · bracelet</p></div></div>
-            <div className="text-right"><div className="text-xs uppercase tracking-wider text-slate-500">Seller ask</div><div className="text-2xl font-semibold">$3,200</div></div>
+            <div className="flex gap-4"><div className="grid size-14 place-items-center rounded-2xl bg-[#07101d] text-cyan-300"><Watch className="size-6" /></div><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold tracking-[-.03em]">{brand} {model}</h2><span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">Normalized</span></div><p className="mt-1 font-mono text-sm text-slate-500">{reference || 'Reference required'} · manual verification</p></div></div>
+            <div className="text-right"><div className="text-xs uppercase tracking-wider text-slate-500">Seller ask</div><div className="text-2xl font-semibold">{money(ask)}</div></div>
           </div>
           <div className="grid gap-6 p-5 md:grid-cols-2 md:p-6">
-            <div><h3 className="mb-4 text-sm font-semibold">Trade economics</h3><div className="space-y-3">
+            <div><h3 className="mb-4 text-sm font-semibold">Listing normalization</h3><div className="mb-5 grid grid-cols-2 gap-3">
+              <Input aria-label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Brand" />
+              <Input aria-label="Model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Model" />
+              <Input aria-label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference" className="font-mono" />
+              <Input aria-label="Seller ask" type="number" min="0" value={ask} onChange={(e) => setAsk(Number(e.target.value))} placeholder="Seller ask" />
+              <Textarea aria-label="Listing text" value={rawText} onChange={(e) => setRawText(e.target.value)} className="col-span-2 min-h-20 resize-none" placeholder="Paste listing description" />
+            </div><h3 className="mb-4 text-sm font-semibold">Trade economics</h3><div className="space-y-3">
               <MoneyRow label="Received watch QLV" value={analysis.receivedQlv} onChange={(v) => update('receivedQlv', v)} positive />
               <MoneyRow label="Your Tudor BB58 QLV" value={analysis.givenQlv} onChange={(v) => update('givenQlv', v)} />
               <MoneyRow label="Cash paid by you" value={analysis.cashPaid} onChange={(v) => update('cashPaid', v)} />
@@ -93,6 +129,10 @@ export default function Home() {
           </section>
         </aside>
       </div>
+      <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6">
+        <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Database className="size-4 text-cyan-700" /><h2 className="font-semibold">Saved analyses</h2></div><span className="text-xs text-slate-500">Persistent history</span></div>
+        {savedListings.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No saved listings yet. Analyze the listing above to create the first record.</p> : <div className="divide-y overflow-hidden rounded-xl border">{savedListings.map((item) => <div key={item.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[110px_minmax(0,1fr)_150px_120px] md:items-center"><span className="w-fit rounded-full bg-slate-100 px-2 py-1 text-xs uppercase text-slate-600">{item.source}</span><div><div className="font-medium">{item.brand} {item.model}</div><div className="font-mono text-xs text-slate-500">{item.reference} · {Math.round(item.confidence * 100)}% match</div></div><div className="text-slate-500">Ask {money(item.askCents / 100)}</div><div className={`font-mono font-semibold ${item.economicAlphaCents >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(item.economicAlphaCents / 100)} alpha</div></div>)}</div>}
+      </section>
       <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6"><div className="mb-5 flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-slate-500">Path to GMT-Master II</p><h2 className="mt-1 text-xl font-semibold tracking-[-.03em]">Trade graph</h2></div><span className="text-sm text-slate-500">Liquidity-weighted route</span></div><div className="flex items-center gap-2 overflow-x-auto pb-1"><GraphNode name="Tudor BB58" value="$2,450" active /><ArrowRight className="size-4 shrink-0 text-slate-300" /><GraphNode name="Omega SMP" value="$2,750" next /><ArrowRight className="size-4 shrink-0 text-slate-300" /><GraphNode name="Rolex Explorer" value="$6,300" /><ArrowRight className="size-4 shrink-0 text-slate-300" /><GraphNode name="GMT-Master II" value="Target" /></div></section>
     </div>
   </main>;
