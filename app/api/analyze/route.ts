@@ -20,6 +20,11 @@ function corsHeaders(request: Request) {
 }
 export async function OPTIONS(request: Request) { return new Response(null, { status: 204, headers: corsHeaders(request) }); }
 
+function responseText(result: { output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> }) {
+  if (result.output_text) return result.output_text;
+  return (result.output || []).flatMap((item) => item.content || []).filter((item) => item.type === 'output_text').map((item) => item.text || '').join('');
+}
+
 export async function POST(request: Request) {
   const headers = corsHeaders(request); const apiKey = env.OPENAI_API_KEY?.trim();
   if (!apiKey) return Response.json({ ok: false, code: 'OPENAI_API_KEY_MISSING', error: 'OpenAI connectivity is not configured.' }, { status: 503, headers });
@@ -33,10 +38,11 @@ export async function POST(request: Request) {
   for (const imageUrl of images) content.push({ type: 'input_image', image_url: imageUrl, detail: 'low' });
   try {
     const upstream = await fetch(OPENAI_RESPONSES_URL, { method: 'POST', headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' }, body: JSON.stringify({ model: MODEL, input: [{ role: 'user', content }], max_output_tokens: connectivityCheck ? 32 : 900, store: false, ...(connectivityCheck ? {} : { text: { format: { type: 'json_schema', name: 'watch_listing_analysis', strict: true, schema: analysisSchema } } }) }) });
-    const result = await upstream.json() as { id?: string; model?: string; output_text?: string };
+    const result = await upstream.json() as { id?: string; model?: string; output_text?: string; output?: Array<{ content?: Array<{ type?: string; text?: string }> }> };
     if (!upstream.ok) return Response.json({ ok: false, code: 'OPENAI_CONNECTION_FAILED', error: 'OpenAI rejected the analysis request.', upstreamStatus: upstream.status }, { status: 502, headers });
-    if (connectivityCheck) return Response.json({ ok: true, message: result.output_text || 'Project Pepsi connected', model: result.model || MODEL, responseId: result.id || null }, { headers });
-    try { return Response.json({ ok: true, analysis: JSON.parse(result.output_text || ''), model: result.model || MODEL, responseId: result.id || null, imagesReviewed: images.length }, { headers }); }
+    const text = responseText(result);
+    if (connectivityCheck) return Response.json({ ok: true, message: text || 'Project Pepsi connected', model: result.model || MODEL, responseId: result.id || null }, { headers });
+    try { return Response.json({ ok: true, analysis: JSON.parse(text), model: result.model || MODEL, responseId: result.id || null, imagesReviewed: images.length }, { headers }); }
     catch { return Response.json({ ok: false, code: 'INVALID_MODEL_OUTPUT', error: 'OpenAI returned an unreadable analysis.' }, { status: 502, headers }); }
   } catch { return Response.json({ ok: false, code: 'OPENAI_UNREACHABLE', error: 'The server could not reach OpenAI.' }, { status: 502, headers }); }
 }
