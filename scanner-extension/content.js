@@ -1,4 +1,9 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'SCRAPE_DETAIL') {
+    const text = clean(document.body?.innerText || '').slice(0, 12000);
+    const images = [...document.querySelectorAll('img')].map((item) => item.src).filter((src) => /^https:\/\/.+/i.test(src) && !/emoji|profile|avatar/i.test(src)).slice(0, 12);
+    sendResponse({ ok: true, rawText: text, images }); return;
+  }
   if (message.type !== 'SCAN_PAGE') return;
   scanRenderedPage(message.autoScroll).then(sendResponse).catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Could not read this page.' }));
   return true;
@@ -28,7 +33,8 @@ function extractListings() {
     const lines = cardText.split('\n').map(clean).filter(Boolean);
     const title = lines.find((line) => !/^\$|^free$/i.test(line) && line.length > 3) || image?.alt || 'Marketplace watch listing';
     const location = parseLocation(lines); const distanceMiles = location ? distanceFromNevadaCity(location.coordinates) : null;
-    results.push({ id: match[1], url: `https://www.facebook.com/marketplace/item/${match[1]}/`, title: clean(title), rawText: rawText.slice(0, 1800), price, image: image?.src || '', locationText: location?.name || '', distanceMiles, locationStatus: distanceMiles == null ? 'unknown' : distanceMiles <= 100 ? 'local' : 'outside_radius', capturedAt: new Date().toISOString() });
+    const images = [...(card?.querySelectorAll('img') || [])].map((item) => item.src).filter((src) => src.startsWith('https://')).slice(0, 4);
+    results.push({ id: match[1], url: `https://www.facebook.com/marketplace/item/${match[1]}/`, title: clean(title), rawText: rawText.slice(0, 1800), price, image: image?.src || '', images, locationText: location?.name || '', distanceMiles, locationStatus: distanceMiles == null ? 'unknown' : distanceMiles <= 100 ? 'local' : 'outside_radius', capturedAt: new Date().toISOString() });
   }
   return results;
 }

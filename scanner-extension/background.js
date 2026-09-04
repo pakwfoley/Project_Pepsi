@@ -12,6 +12,7 @@ const DEFAULTS = {
   homeLongitude: -120.9717,
   maximumDistanceMiles: 100,
   localOnly: true,
+  backendUrl: 'https://project-pepsi-trade-intelligence.patrickfoley2017.chatgpt.site',
   listings: {},
 };
 
@@ -109,11 +110,23 @@ function scoreListing(listing, settings) {
 async function storeListings(incoming, tabId) {
   const settings = await chrome.storage.local.get(DEFAULTS);
   if (tabId !== settings.tabId) return { ok: false };
-  const records = { ...settings.listings }; let newCount = 0; let flaggedCount = 0;
+  const records = { ...settings.listings }; let newCount = 0; let flaggedCount = 0; let aiCount = 0;
   for (const listing of incoming) {
     const prior = records[listing.id]; const scored = scoreListing(listing, settings);
     records[listing.id] = { ...prior, ...listing, ...scored, firstSeenAt: prior?.firstSeenAt || new Date().toISOString(), lastSeenAt: new Date().toISOString() };
     if (!prior) newCount += 1;
+    if (!prior?.aiAnalysis && !prior?.aiRequestedAt && scored.score >= 35 && aiCount < 3) {
+      records[listing.id].aiRequestedAt = new Date().toISOString();
+      try {
+        const detail = await scrapeDetailListing(listing);
+        const imageData = await downloadImages(detail.images || listing.images || []);
+        const packageForAnalysis = { ...listing, rawText: detail.rawText || listing.rawText, images: imageData };
+        const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(packageForAnalysis) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(response.status === 401 ? 'Sign into the private Project Pepsi site, then scan again.' : result.error || 'Backend analysis failed.');
+        records[listing.id].rawText = packageForAnalysis.rawText; records[listing.id].aiAnalysis = result.analysis; records[listing.id].aiModel = result.model; records[listing.id].imagesReviewed = result.imagesReviewed; aiCount += 1;
+      } catch (error) { records[listing.id].aiError = error instanceof Error ? error.message : 'Backend analysis failed.'; }
+    }
     if (!prior?.notifiedAt && scored.eligible && scored.score >= Number(settings.minimumScore)) {
       records[listing.id].notifiedAt = new Date().toISOString(); flaggedCount += 1;
       try {
@@ -129,5 +142,43 @@ async function storeListings(incoming, tabId) {
   await chrome.storage.local.set({ listings: trimmed, lastNewCount: newCount, lastFlaggedCount: flaggedCount });
   return { ok: true, newCount, flaggedCount };
 }
+
+async function scrapeDetailListing(listing) {
+  let detailTab;
+  try {
+    detailTab = await chrome.tabs.create({ url: listing.url, active: false });
+    await waitForTab(detailTab.id); await delay(2200);
+    let response;
+    try { response = await chrome.tabs.sendMessage(detailTab.id, { type: 'SCRAPE_DETAIL' }); }
+    catch { await chrome.scripting.executeScript({ target: { tabId: detailTab.id }, files: ['locations.js', 'content.js'] }); response = await chrome.tabs.sendMessage(detailTab.id, { type: 'SCRAPE_DETAIL' }); }
+    return response?.ok ? response : listing;
+  } finally { if (detailTab?.id) await chrome.tabs.remove(detailTab.id).catch(() => undefined); }
+}
+
+function waitForTab(tabId) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 12000);
+    const listener = (updatedId, info) => { if (updatedId === tabId && info.status === 'complete') { clearTimeout(timeout); chrome.tabs.onUpdated.removeListener(listener); resolve(); } };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function downloadImages(urls) {
+  const results = [];
+  for (const url of [...new Set(urls)].slice(0, 4)) {
+    try {
+      const response = await fetch(url, { credentials: 'include' });
+      const type = response.headers.get('content-type') || '';
+      const blob = await response.blob();
+      if (!response.ok || !type.startsWith('image/') || blob.size > 2_000_000) continue;
+      const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = '';
+      for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+      results.push(`data:${type};base64,${btoa(binary)}`);
+    } catch { /* Skip individual photos that Facebook no longer serves. */ }
+  }
+  return results;
+}
+
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const formatMoney = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value) || 0);

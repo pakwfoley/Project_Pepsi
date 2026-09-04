@@ -1,6 +1,6 @@
 # Project Pepsi Marketplace Scanner
 
-This is the first read-only Facebook discovery adapter. It scans one open Marketplace search using the Facebook session already active in Chrome, deduplicates visible listing cards, scores them locally, and shows desktop notifications for candidates.
+This is the read-only Facebook discovery adapter. It scans one open Marketplace search using the Facebook session already active in Chrome, deduplicates visible listing cards, and sends bounded candidate packages to the private Project Pepsi backend for analysis.
 
 ## Install in Chrome
 
@@ -25,11 +25,12 @@ Keep that Marketplace tab open. The extension scans it at the configured interva
 
 ## Authority boundary
 
-- Reads only visible Marketplace result cards.
-- Stores observations in Chrome local storage; maximum 500 listings.
+- Reads visible result cards. For up to three promising new candidates per scan, it opens the detail page in an inactive tab, captures the rendered description and displayed photos, and closes the tab.
+- Sends listing text, price, location, URL, and up to four bounded photo files to the private Project Pepsi backend. Facebook cookies and credentials are never included.
+- Stores observations and returned analysis in Chrome local storage; maximum 500 listings.
 - Never sends messages, makes offers, clicks checkout, or accesses Facebook passwords/cookies.
 - Uses conservative intervals of one minute or longer.
-- Does not yet synchronize candidates to the hosted Project Pepsi valuation database.
+- Keeps identification, image review, risk assessment, and question generation on the server.
 
 Location data © GeoNames and is licensed under CC BY 4.0: https://www.geonames.org/
 
