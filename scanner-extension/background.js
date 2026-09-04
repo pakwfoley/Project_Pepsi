@@ -116,7 +116,13 @@ async function storeListings(incoming, tabId) {
     if (!prior) newCount += 1;
     if (!prior?.notifiedAt && scored.eligible && scored.score >= Number(settings.minimumScore)) {
       records[listing.id].notifiedAt = new Date().toISOString(); flaggedCount += 1;
-      await chrome.notifications.create(`pepsi-${listing.id}`, { type: 'basic', iconUrl: 'icon.svg', title: `Project Pepsi · ${scored.score}/100`, message: `${listing.title}${listing.price ? ` · ${formatMoney(listing.price)}` : ''}${listing.distanceMiles != null ? ` · ${Math.round(listing.distanceMiles)} mi` : ' · location unknown'}` });
+      try {
+        await chrome.notifications.create(`pepsi-${listing.id}`, { type: 'basic', iconUrl: 'icon.svg', title: `Project Pepsi · ${scored.score}/100`, message: `${listing.title}${listing.price ? ` · ${formatMoney(listing.price)}` : ''}${listing.distanceMiles != null ? ` · ${Math.round(listing.distanceMiles)} mi` : ' · location unknown'}` });
+      } catch (_error) {
+        // Some Chrome builds reject SVG notification icons. The opportunity is
+        // still retained in the popup, and a cosmetic notification failure must
+        // never abort the scan.
+      }
     }
   }
   const trimmed = Object.fromEntries(Object.entries(records).sort((a, b) => String(b[1].lastSeenAt).localeCompare(String(a[1].lastSeenAt))).slice(0, 500));
