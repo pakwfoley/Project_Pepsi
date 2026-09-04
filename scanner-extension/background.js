@@ -7,6 +7,11 @@ const DEFAULTS = {
   maximumAsk: 10000,
   minimumScore: 55,
   autoScroll: true,
+  homeLocation: 'Nevada City, CA',
+  homeLatitude: 39.3017,
+  homeLongitude: -120.9717,
+  maximumDistanceMiles: 100,
+  localOnly: true,
   listings: {},
 };
 
@@ -79,15 +84,18 @@ function scoreListing(listing, settings) {
   const text = `${listing.title} ${listing.rawText}`.toLowerCase();
   const wanted = String(settings.keywords).split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
   const excluded = String(settings.excludedKeywords).split(',').map((value) => value.trim().toLowerCase()).filter(Boolean);
-  if (excluded.some((term) => text.includes(term))) return { score: 0, reasons: ['Excluded term found'] };
+  if (excluded.some((term) => text.includes(term))) return { score: 0, reasons: ['Excluded term found'], eligible: false };
+  if (settings.localOnly && listing.distanceMiles != null && listing.distanceMiles > Number(settings.maximumDistanceMiles)) return { score: 0, reasons: [`Outside ${settings.maximumDistanceMiles}-mile radius`], eligible: false };
   let score = 10; const reasons = [];
   const match = wanted.find((term) => text.includes(term));
   if (match) { score += 45; reasons.push(`Matches “${match}”`); }
   if (listing.price && listing.price <= Number(settings.maximumAsk)) { score += 25; reasons.push(`Ask is within ${formatMoney(settings.maximumAsk)}`); }
   if (/\b(?:full set|box.{0,8}papers|papers.{0,8}box)\b/i.test(text)) { score += 10; reasons.push('Mentions full set'); }
   if (/\b(?:ref(?:erence)?[\s:#-]*[a-z0-9.-]{5,}|\d{3}\.\d{2}\.\d{2})\b/i.test(text)) { score += 10; reasons.push('Reference-like identifier found'); }
+  if (listing.distanceMiles != null && listing.distanceMiles <= Number(settings.maximumDistanceMiles)) { score += 15; reasons.push(`${Math.round(listing.distanceMiles)} mi from Nevada City`); }
+  else if (listing.distanceMiles == null) { score -= 20; reasons.push('Location unknown'); }
   if (!listing.price) reasons.push('Price needs review');
-  return { score: Math.min(score, 100), reasons };
+  return { score: Math.max(0, Math.min(score, 100)), reasons, eligible: listing.distanceMiles != null ? listing.distanceMiles <= Number(settings.maximumDistanceMiles) : !settings.localOnly };
 }
 
 async function storeListings(incoming, tabId) {
@@ -98,9 +106,9 @@ async function storeListings(incoming, tabId) {
     const prior = records[listing.id]; const scored = scoreListing(listing, settings);
     records[listing.id] = { ...prior, ...listing, ...scored, firstSeenAt: prior?.firstSeenAt || new Date().toISOString(), lastSeenAt: new Date().toISOString() };
     if (!prior) newCount += 1;
-    if (!prior?.notifiedAt && scored.score >= Number(settings.minimumScore)) {
+    if (!prior?.notifiedAt && scored.eligible && scored.score >= Number(settings.minimumScore)) {
       records[listing.id].notifiedAt = new Date().toISOString(); flaggedCount += 1;
-      await chrome.notifications.create(`pepsi-${listing.id}`, { type: 'basic', iconUrl: 'icon.svg', title: `Project Pepsi · ${scored.score}/100`, message: `${listing.title}${listing.price ? ` · ${formatMoney(listing.price)}` : ''}` });
+      await chrome.notifications.create(`pepsi-${listing.id}`, { type: 'basic', iconUrl: 'icon.svg', title: `Project Pepsi · ${scored.score}/100`, message: `${listing.title}${listing.price ? ` · ${formatMoney(listing.price)}` : ''}${listing.distanceMiles != null ? ` · ${Math.round(listing.distanceMiles)} mi` : ' · location unknown'}` });
     }
   }
   const trimmed = Object.fromEntries(Object.entries(records).sort((a, b) => String(b[1].lastSeenAt).localeCompare(String(a[1].lastSeenAt))).slice(0, 500));

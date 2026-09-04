@@ -12,6 +12,15 @@ This is the first read-only Facebook discovery adapter. It scans one open Market
 
 Keep that Marketplace tab open. The extension scans it at the configured interval and gently advances through the results when auto-scroll is enabled.
 
+## Location policy
+
+- Home base is fixed to **Nevada City, California**.
+- Maximum distance defaults to **100 miles**.
+- **Local results only** is enabled by default.
+- Listing locations are resolved offline against a bundled California place/ZIP index derived from GeoNames postal-code data.
+- Listings with unknown locations are retained for review but are not eligible for alerts while local-only filtering is enabled.
+- No listing location is sent to an external geocoding service.
+
 ## Authority boundary
 
 - Reads only visible Marketplace result cards.
@@ -19,5 +28,7 @@ Keep that Marketplace tab open. The extension scans it at the configured interva
 - Never sends messages, makes offers, clicks checkout, or accesses Facebook passwords/cookies.
 - Uses conservative intervals of one minute or longer.
 - Does not yet synchronize candidates to the hosted Project Pepsi valuation database.
+
+Location data © GeoNames and is licensed under CC BY 4.0: https://www.geonames.org/
 
 Facebook can change its page structure or restrict automated behavior. Use a dedicated Marketplace search and stop the scanner if Facebook presents a challenge or unusual login prompt.

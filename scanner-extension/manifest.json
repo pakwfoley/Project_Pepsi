@@ -9,7 +9,7 @@
   "action": { "default_title": "Project Pepsi Scanner", "default_popup": "popup.html" },
   "content_scripts": [{
     "matches": ["https://www.facebook.com/marketplace/*"],
-    "js": ["content.js"],
+    "js": ["locations.js", "content.js"],
     "run_at": "document_idle"
   }]
 }
