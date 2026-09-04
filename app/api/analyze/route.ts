@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { getDb } from '@/db';
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MODEL = 'gpt-5.4-mini';
@@ -28,6 +29,11 @@ function responseText(result: { output_text?: string; output?: Array<{ content?:
   return (result.output || []).flatMap((item) => item.content || []).filter((item) => item.type === 'output_text').map((item) => item.text || '').join('');
 }
 
+export async function GET() {
+  const result = await getDb().prepare(`SELECT id, source_key AS sourceKey, url, title, raw_text AS rawText, ask_cents AS askCents, location_text AS locationText, distance_miles AS distanceMiles, image_metadata_json AS imageMetadataJson, analysis_json AS analysisJson, status, created_at AS createdAt, updated_at AS updatedAt FROM scanner_candidates ORDER BY updated_at DESC LIMIT 30`).all();
+  return Response.json({ candidates: result.results.map((row) => ({ ...row, imageMetadata: JSON.parse(String(row.imageMetadataJson || '[]')), analysis: JSON.parse(String(row.analysisJson || '{}')), imageMetadataJson: undefined, analysisJson: undefined })) }, { headers: { 'cache-control': 'no-store' } });
+}
+
 export async function POST(request: Request) {
   const headers = corsHeaders(request); const apiKey = env.OPENAI_API_KEY?.trim();
   if (!apiKey) return Response.json({ ok: false, code: 'OPENAI_API_KEY_MISSING', error: 'OpenAI connectivity is not configured.' }, { status: 503, headers });
@@ -49,7 +55,13 @@ export async function POST(request: Request) {
     if (!upstream.ok) return Response.json({ ok: false, code: 'OPENAI_CONNECTION_FAILED', error: 'OpenAI rejected the analysis request.', upstreamStatus: upstream.status }, { status: 502, headers });
     const text = responseText(result);
     if (connectivityCheck) return Response.json({ ok: true, message: text || 'Project Pepsi connected', model: result.model || MODEL, responseId: result.id || null }, { headers });
-    try { return Response.json({ ok: true, analysis: JSON.parse(text), model: result.model || MODEL, responseId: result.id || null, ingestion: { contractVersion: 1, submittedImages: images.map(({ dataUrl: _dataUrl, ...metadata }) => metadata), rejectedImageIndexes: rejectedImages } }, { headers }); }
+    try {
+      const analysis = JSON.parse(text); const imageMetadata = images.map(({ dataUrl: _dataUrl, ...metadata }) => metadata); const now = new Date().toISOString();
+      const sourceKey = String(listing?.url || crypto.randomUUID()).match(/\/marketplace\/item\/([^/?#]+)/i)?.[1] || String(listing?.url || crypto.randomUUID());
+      const candidateId = crypto.randomUUID();
+      await getDb().prepare(`INSERT INTO scanner_candidates (id, source_key, url, title, raw_text, ask_cents, location_text, distance_miles, image_metadata_json, analysis_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?) ON CONFLICT(source_key) DO UPDATE SET url = excluded.url, title = excluded.title, raw_text = excluded.raw_text, ask_cents = excluded.ask_cents, location_text = excluded.location_text, distance_miles = excluded.distance_miles, image_metadata_json = excluded.image_metadata_json, analysis_json = excluded.analysis_json, updated_at = excluded.updated_at`).bind(candidateId, sourceKey, String(listing?.url || ''), String(listing?.title || ''), String(listing?.rawText || ''), Number.isFinite(Number(listing?.price)) ? Math.round(Number(listing?.price) * 100) : null, String(listing?.locationText || ''), Number.isFinite(Number(listing?.distanceMiles)) ? Number(listing?.distanceMiles) : null, JSON.stringify(imageMetadata), JSON.stringify(analysis), now, now).run();
+      return Response.json({ ok: true, candidateId, analysis, model: result.model || MODEL, responseId: result.id || null, ingestion: { contractVersion: 1, submittedImages: imageMetadata, rejectedImageIndexes: rejectedImages } }, { headers });
+    }
     catch { return Response.json({ ok: false, code: 'INVALID_MODEL_OUTPUT', error: 'OpenAI returned an unreadable analysis.' }, { status: 502, headers }); }
   } catch { return Response.json({ ok: false, code: 'OPENAI_UNREACHABLE', error: 'The server could not reach OpenAI.' }, { status: 502, headers }); }
 }

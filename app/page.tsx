@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 
 type Analysis = { receivedQlv: number; givenQlv: number; cashPaid: number; costs: number; riskPenalty: number; liquidityBonus: number };
 type SavedListing = { id: string; source: string; brand: string; model: string; reference: string; askCents: number; confidence: number; economicAlphaCents: number; strategicScoreCents: number; createdAt: string };
+type ScannerCandidate = { id: string; url: string; title: string; askCents: number | null; locationText: string; distanceMiles: number | null; imageMetadata: unknown[]; updatedAt: string; analysis: { identification?: { brand?: string; model?: string; reference?: string; confidence?: number }; recommendation?: string; rationale?: string; questions?: string[]; riskSignals?: string[] } };
 const initial: Analysis = { receivedQlv: 2750, givenQlv: 2450, cashPaid: 150, costs: 50, riskPenalty: 75, liquidityBonus: 140 };
 const stages = ['Discovered', 'Valued', 'Qualify seller', 'Ask questions', 'Opening offer', 'Counter', 'Pending approval'];
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
@@ -29,6 +30,7 @@ export default function Home() {
   const [stage, setStage] = useState(2);
   const [notice, setNotice] = useState('');
   const [savedListings, setSavedListings] = useState<SavedListing[]>([]);
+  const [scannerCandidates, setScannerCandidates] = useState<ScannerCandidate[]>([]);
   const [saving, setSaving] = useState(false);
   const economicAlpha = useMemo(() => analysis.receivedQlv - analysis.givenQlv - analysis.cashPaid - analysis.costs - analysis.riskPenalty, [analysis]);
   const strategicScore = economicAlpha + analysis.liquidityBonus;
@@ -45,6 +47,7 @@ export default function Home() {
     const data = await response.json() as { listings: SavedListing[] };
     setSavedListings(data.listings);
   };
+  const loadScannerCandidates = async () => { const response = await fetch('/api/analyze'); if (response.ok) { const data = await response.json() as { candidates: ScannerCandidate[] }; setScannerCandidates(data.candidates); } };
 
   const extractListing = async () => {
     setExtracting(true); setNotice('');
@@ -78,7 +81,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    void loadListings();
+    void loadListings(); void loadScannerCandidates();
     const modelContext = (document as Document & { modelContext?: { registerTool?: (tool: unknown, options?: unknown) => void } }).modelContext;
     if (!modelContext?.registerTool) return;
     const lifecycle = new AbortController();
@@ -157,6 +160,10 @@ export default function Home() {
           </section>
         </aside>
       </div>
+      <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6">
+        <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Sparkles className="size-4 text-cyan-700" /><h2 className="font-semibold">Scanner review queue</h2></div><Button variant="outline" size="sm" onClick={() => void loadScannerCandidates()}>Refresh</Button></div>
+        {scannerCandidates.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No scanner analyses have reached the backend yet.</p> : <div className="grid gap-3 lg:grid-cols-2">{scannerCandidates.map((item) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-xl border p-4 transition hover:border-cyan-300 hover:bg-cyan-50/30"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{item.analysis.identification?.brand || item.title} {item.analysis.identification?.model || ''}</div><div className="mt-1 font-mono text-xs text-slate-500">{item.analysis.identification?.reference || 'Reference unknown'} · {item.imageMetadata.length} image{item.imageMetadata.length === 1 ? '' : 's'}</div></div><span className="rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-semibold uppercase text-cyan-800">{item.analysis.recommendation || 'review'}</span></div><p className="mt-3 text-sm leading-5 text-slate-600">{item.analysis.rationale || 'Analysis available.'}</p>{item.analysis.questions?.length ? <p className="mt-2 text-xs leading-5 text-slate-500"><strong>Ask:</strong> {item.analysis.questions.slice(0, 2).join(' · ')}</p> : null}</a>)}</div>}
+      </section>
       <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6">
         <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Database className="size-4 text-cyan-700" /><h2 className="font-semibold">Saved analyses</h2></div><span className="text-xs text-slate-500">Persistent history</span></div>
         {savedListings.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No saved listings yet. Analyze the listing above to create the first record.</p> : <div className="divide-y overflow-hidden rounded-xl border">{savedListings.map((item) => <div key={item.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[110px_minmax(0,1fr)_150px_120px] md:items-center"><span className="w-fit rounded-full bg-slate-100 px-2 py-1 text-xs uppercase text-slate-600">{item.source}</span><div><div className="font-medium">{item.brand} {item.model}</div><div className="font-mono text-xs text-slate-500">{item.reference} · {Math.round(item.confidence * 100)}% match</div></div><div className="text-slate-500">Ask {money(item.askCents / 100)}</div><div className={`font-mono font-semibold ${item.economicAlphaCents >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(item.economicAlphaCents / 100)} alpha</div></div>)}</div>}

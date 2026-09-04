@@ -15,6 +15,13 @@
       "when": 1788480084257,
       "tag": "0001_burly_liz_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788556144397,
+      "tag": "0002_strong_miek",
+      "breakpoints": true
     }
   ]
 }

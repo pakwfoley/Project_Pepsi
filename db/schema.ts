@@ -31,3 +31,19 @@ export const valuations = sqliteTable('valuations', {
   qlvHaircutBps: integer('qlv_haircut_bps'),
   createdAt: text('created_at').notNull(),
 }, (table) => [index('idx_valuations_listing_created').on(table.listingId, table.createdAt)]);
+
+export const scannerCandidates = sqliteTable('scanner_candidates', {
+  id: text('id').primaryKey(),
+  sourceKey: text('source_key').notNull().unique(),
+  url: text('url').notNull(),
+  title: text('title').notNull(),
+  rawText: text('raw_text').notNull(),
+  askCents: integer('ask_cents'),
+  locationText: text('location_text').notNull(),
+  distanceMiles: real('distance_miles'),
+  imageMetadataJson: text('image_metadata_json').notNull(),
+  analysisJson: text('analysis_json').notNull(),
+  status: text('status').notNull().default('new'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [index('idx_scanner_candidates_status_updated').on(table.status, table.updatedAt)]);

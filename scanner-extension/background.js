@@ -118,9 +118,8 @@ async function storeListings(incoming, tabId) {
     if (!prior?.aiAnalysis && !prior?.aiRequestedAt && scored.score >= 35 && aiCount < 3) {
       records[listing.id].aiRequestedAt = new Date().toISOString();
       try {
-        const detail = await scrapeDetailListing(listing);
-        const imageData = await prepareImages(detail.images || (listing.images || []).map((sourceUrl, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_search_card' })));
-        const packageForAnalysis = { ...listing, rawText: detail.rawText || listing.rawText, images: imageData };
+        const imageData = await prepareImages((listing.images || []).map((sourceUrl, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_search_card' })));
+        const packageForAnalysis = { ...listing, images: imageData };
         const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(packageForAnalysis) });
         const result = await response.json();
         if (!response.ok) throw new Error(response.status === 401 ? 'Sign into the private Project Pepsi site, then scan again.' : result.error || 'Backend analysis failed.');
@@ -141,26 +140,6 @@ async function storeListings(incoming, tabId) {
   const trimmed = Object.fromEntries(Object.entries(records).sort((a, b) => String(b[1].lastSeenAt).localeCompare(String(a[1].lastSeenAt))).slice(0, 500));
   await chrome.storage.local.set({ listings: trimmed, lastNewCount: newCount, lastFlaggedCount: flaggedCount });
   return { ok: true, newCount, flaggedCount };
-}
-
-async function scrapeDetailListing(listing) {
-  let detailTab;
-  try {
-    detailTab = await chrome.tabs.create({ url: listing.url, active: false });
-    await waitForTab(detailTab.id); await delay(2200);
-    let response;
-    try { response = await chrome.tabs.sendMessage(detailTab.id, { type: 'SCRAPE_DETAIL' }); }
-    catch { await chrome.scripting.executeScript({ target: { tabId: detailTab.id }, files: ['locations.js', 'content.js'] }); response = await chrome.tabs.sendMessage(detailTab.id, { type: 'SCRAPE_DETAIL' }); }
-    return response?.ok ? response : listing;
-  } finally { if (detailTab?.id) await chrome.tabs.remove(detailTab.id).catch(() => undefined); }
-}
-
-function waitForTab(tabId) {
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 12000);
-    const listener = (updatedId, info) => { if (updatedId === tabId && info.status === 'complete') { clearTimeout(timeout); chrome.tabs.onUpdated.removeListener(listener); resolve(); } };
-    chrome.tabs.onUpdated.addListener(listener);
-  });
 }
 
 async function prepareImages(sources) {
@@ -184,7 +163,5 @@ async function prepareImages(sources) {
   }
   return results;
 }
-
-const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const formatMoney = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value) || 0);
