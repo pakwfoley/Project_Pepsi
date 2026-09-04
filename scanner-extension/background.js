@@ -119,12 +119,12 @@ async function storeListings(incoming, tabId) {
       records[listing.id].aiRequestedAt = new Date().toISOString();
       try {
         const detail = await scrapeDetailListing(listing);
-        const imageData = await downloadImages(detail.images || listing.images || []);
+        const imageData = await prepareImages(detail.images || (listing.images || []).map((sourceUrl, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_search_card' })));
         const packageForAnalysis = { ...listing, rawText: detail.rawText || listing.rawText, images: imageData };
         const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(packageForAnalysis) });
         const result = await response.json();
         if (!response.ok) throw new Error(response.status === 401 ? 'Sign into the private Project Pepsi site, then scan again.' : result.error || 'Backend analysis failed.');
-        records[listing.id].rawText = packageForAnalysis.rawText; records[listing.id].aiAnalysis = result.analysis; records[listing.id].aiModel = result.model; records[listing.id].imagesReviewed = result.imagesReviewed; aiCount += 1;
+        records[listing.id].rawText = packageForAnalysis.rawText; records[listing.id].aiAnalysis = result.analysis; records[listing.id].aiModel = result.model; records[listing.id].imagesReviewed = result.ingestion?.submittedImages?.length || 0; aiCount += 1;
       } catch (error) { records[listing.id].aiError = error instanceof Error ? error.message : 'Backend analysis failed.'; }
     }
     if (!prior?.notifiedAt && scored.eligible && scored.score >= Number(settings.minimumScore)) {
@@ -163,17 +163,23 @@ function waitForTab(tabId) {
   });
 }
 
-async function downloadImages(urls) {
+async function prepareImages(sources) {
   const results = [];
-  for (const url of [...new Set(urls)].slice(0, 4)) {
+  const unique = [...new Map(sources.map((item) => [item.sourceUrl, item])).values()].slice(0, 6);
+  for (const source of unique) {
     try {
-      const response = await fetch(url, { credentials: 'include' });
-      const type = response.headers.get('content-type') || '';
-      const blob = await response.blob();
-      if (!response.ok || !type.startsWith('image/') || blob.size > 2_000_000) continue;
-      const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = '';
+      const response = await fetch(source.sourceUrl, { credentials: 'include' }); const original = await response.blob();
+      if (!response.ok || !original.type.startsWith('image/')) continue;
+      const bitmap = await createImageBitmap(original); const originalWidth = bitmap.width; const originalHeight = bitmap.height;
+      const scale = Math.min(1, 2048 / Math.max(originalWidth, originalHeight)); const width = Math.max(1, Math.round(originalWidth * scale)); const height = Math.max(1, Math.round(originalHeight * scale));
+      const canvas = new OffscreenCanvas(width, height); const context = canvas.getContext('2d'); if (!context) { bitmap.close(); continue; }
+      context.drawImage(bitmap, 0, 0, width, height); bitmap.close();
+      let quality = 0.88; let encoded = await canvas.convertToBlob({ type: 'image/webp', quality });
+      if (encoded.size > 2_000_000) { quality = 0.85; encoded = await canvas.convertToBlob({ type: 'image/webp', quality }); }
+      if (encoded.size > 2_000_000) continue;
+      const bytes = new Uint8Array(await encoded.arrayBuffer()); let binary = '';
       for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
-      results.push(`data:${type};base64,${btoa(binary)}`);
+      results.push({ contractVersion: 1, imageIndex: source.imageIndex, sourceUrl: source.sourceUrl, sourceType: source.sourceType, mediaType: 'image/webp', originalWidth, originalHeight, width, height, longEdge: Math.max(width, height), quality, byteLength: encoded.size, dataUrl: `data:image/webp;base64,${btoa(binary)}` });
     } catch { /* Skip individual photos that Facebook no longer serves. */ }
   }
   return results;

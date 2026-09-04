@@ -1,7 +1,7 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'SCRAPE_DETAIL') {
     const text = clean(document.body?.innerText || '').slice(0, 12000);
-    const images = [...document.querySelectorAll('img')].map((item) => item.src).filter((src) => /^https:\/\/.+/i.test(src) && !/emoji|profile|avatar/i.test(src)).slice(0, 12);
+    const images = [...document.querySelectorAll('img')].map((item, imageIndex) => ({ imageIndex, sourceUrl: item.currentSrc || item.src, sourceType: 'facebook_detail_dom' })).filter((item) => /^https:\/\/.+/i.test(item.sourceUrl) && !/emoji|profile|avatar/i.test(item.sourceUrl)).slice(0, 6);
     sendResponse({ ok: true, rawText: text, images }); return;
   }
   if (message.type !== 'SCAN_PAGE') return;
