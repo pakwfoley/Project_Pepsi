@@ -4,6 +4,7 @@ type ListingInput = {
   url: string; rawText?: string; brand: string; model: string; reference: string;
   ask: number; receivedQlv: number; givenQlv: number; cashPaid: number;
   costs: number; riskPenalty: number; liquidityBonus: number;
+  dealerAskMedian?: number; privateAskMedian?: number; clearingEstimate?: number; qlvHaircutBps?: number;
 };
 
 const sourceFromUrl = (url: string) => {
@@ -55,8 +56,8 @@ export async function POST(request: Request) {
   await db.batch([
     db.prepare(`INSERT INTO listings (id, url, source, raw_text, brand, model, reference, ask_cents, normalization_confidence, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(listingId, input.url, sourceFromUrl(input.url), input.rawText ?? '', input.brand.trim(), input.model.trim(), input.reference.trim().toUpperCase(), cents(input.ask), confidence, now),
-    db.prepare(`INSERT INTO valuations (id, listing_id, policy_version, received_qlv_cents, given_qlv_cents, cash_paid_cents, cost_cents, expected_risk_loss_cents, liquidity_adjustment_cents, economic_alpha_cents, strategic_score_cents, created_at)
-      VALUES (?, ?, 'mvp-1', ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(valuationId, listingId, received, given, cash, costs, risk, liquidity, alpha, strategic, now),
+    db.prepare(`INSERT INTO valuations (id, listing_id, policy_version, received_qlv_cents, given_qlv_cents, cash_paid_cents, cost_cents, expected_risk_loss_cents, liquidity_adjustment_cents, economic_alpha_cents, strategic_score_cents, dealer_ask_median_cents, private_ask_median_cents, clearing_estimate_cents, qlv_haircut_bps, created_at)
+      VALUES (?, ?, 'mvp-2', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(valuationId, listingId, received, given, cash, costs, risk, liquidity, alpha, strategic, cents(input.dealerAskMedian ?? 0), cents(input.privateAskMedian ?? 0), cents(input.clearingEstimate ?? 0), Math.round(input.qlvHaircutBps ?? 1000), now),
   ]);
   return Response.json({ id: listingId, economicAlpha: alpha / 100, strategicScore: strategic / 100, confidence }, { status: 201 });
 }

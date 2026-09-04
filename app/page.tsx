@@ -20,6 +20,12 @@ export default function Home() {
   const [reference, setReference] = useState('210.30.42.20.01.001');
   const [ask, setAsk] = useState(3200);
   const [rawText, setRawText] = useState('Full set, black dial, bracelet. Seller reports normal wear and no recent service.');
+  const [dealerAskMedian, setDealerAskMedian] = useState(3050);
+  const [privateAskMedian, setPrivateAskMedian] = useState(2950);
+  const [clearingEstimate, setClearingEstimate] = useState(2875);
+  const [qlvHaircut, setQlvHaircut] = useState(10);
+  const [extraction, setExtraction] = useState<{ confidence: number; evidence: string[]; missing: string[] } | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const [stage, setStage] = useState(2);
   const [notice, setNotice] = useState('');
   const [savedListings, setSavedListings] = useState<SavedListing[]>([]);
@@ -27,6 +33,7 @@ export default function Home() {
   const economicAlpha = useMemo(() => analysis.receivedQlv - analysis.givenQlv - analysis.cashPaid - analysis.costs - analysis.riskPenalty, [analysis]);
   const strategicScore = economicAlpha + analysis.liquidityBonus;
   const maxCash = Math.max(0, analysis.receivedQlv - analysis.givenQlv - analysis.costs - analysis.riskPenalty - 200);
+  const comparableMedian = useMemo(() => [dealerAskMedian, privateAskMedian, clearingEstimate].sort((a, b) => a - b)[1], [dealerAskMedian, privateAskMedian, clearingEstimate]);
   const update = (key: keyof Analysis, value: string) => {
     const parsed = Number(value.replace(/[^0-9.-]/g, ''));
     setAnalysis((current) => ({ ...current, [key]: Number.isFinite(parsed) ? parsed : 0 }));
@@ -39,11 +46,28 @@ export default function Home() {
     setSavedListings(data.listings);
   };
 
+  const extractListing = async () => {
+    setExtracting(true); setNotice('');
+    try {
+      const response = await fetch('/api/normalize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: listing, text: rawText }) });
+      const data = await response.json() as { brand: string; model: string; reference: string; ask: number | null; confidence: number; evidence: string[]; missing: string[] };
+      if (data.brand) setBrand(data.brand); if (data.model) setModel(data.model); if (data.reference) setReference(data.reference); if (data.ask) setAsk(data.ask);
+      setExtraction(data); setNotice(`Extraction complete · ${Math.round(data.confidence * 100)}% field coverage`);
+    } catch { setNotice('Could not extract this listing. You can still enter the fields manually.'); }
+    finally { setExtracting(false); }
+  };
+
+  const estimateQlv = () => {
+    const estimate = Math.round(comparableMedian * (1 - qlvHaircut / 100) / 25) * 25;
+    setAnalysis((current) => ({ ...current, receivedQlv: estimate }));
+    setNotice(`QLV estimated at ${money(estimate)} from a ${money(comparableMedian)} median and ${qlvHaircut}% liquidity haircut`);
+  };
+
   const analyzeListing = async () => {
     setSaving(true); setNotice('');
     try {
       const response = await fetch('/api/listings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
-        url: listing, rawText, brand, model, reference, ask, ...analysis,
+        url: listing, rawText, brand, model, reference, ask, ...analysis, dealerAskMedian, privateAskMedian, clearingEstimate, qlvHaircutBps: qlvHaircut * 100,
       }) });
       const data = await response.json() as { error?: string; confidence?: number };
       if (!response.ok) throw new Error(data.error ?? 'Could not save listing.');
@@ -95,13 +119,17 @@ export default function Home() {
             <div className="text-right"><div className="text-xs uppercase tracking-wider text-slate-500">Seller ask</div><div className="text-2xl font-semibold">{money(ask)}</div></div>
           </div>
           <div className="grid gap-6 p-5 md:grid-cols-2 md:p-6">
-            <div><h3 className="mb-4 text-sm font-semibold">Listing normalization</h3><div className="mb-5 grid grid-cols-2 gap-3">
+            <div><div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">Listing normalization</h3><Button variant="outline" size="sm" disabled={extracting} onClick={extractListing}>{extracting ? <Loader2 className="animate-spin" /> : <Sparkles />} Extract fields</Button></div><div className="mb-4 grid grid-cols-2 gap-3">
               <Input aria-label="Brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Brand" />
               <Input aria-label="Model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Model" />
               <Input aria-label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference" className="font-mono" />
               <Input aria-label="Seller ask" type="number" min="0" value={ask} onChange={(e) => setAsk(Number(e.target.value))} placeholder="Seller ask" />
               <Textarea aria-label="Listing text" value={rawText} onChange={(e) => setRawText(e.target.value)} className="col-span-2 min-h-20 resize-none" placeholder="Paste listing description" />
-            </div><h3 className="mb-4 text-sm font-semibold">Trade economics</h3><div className="space-y-3">
+            </div>{extraction && <div className="mb-5 rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-xs"><div className="font-semibold text-cyan-900">Extraction evidence</div><div className="mt-1 leading-5 text-cyan-800">{extraction.evidence.join(' · ') || 'No structured fields found.'}</div>{extraction.missing.length > 0 && <div className="mt-1 text-amber-700">Confirm manually: {extraction.missing.join(', ')}</div>}</div>}
+            <div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">Comparable-based QLV</h3><span className="text-xs text-slate-500">Median minus haircut</span></div>
+            <div className="mb-3 grid grid-cols-2 gap-3"><CompactMoney label="Dealer ask median" value={dealerAskMedian} onChange={setDealerAskMedian} /><CompactMoney label="Private ask median" value={privateAskMedian} onChange={setPrivateAskMedian} /><CompactMoney label="Clearing estimate" value={clearingEstimate} onChange={setClearingEstimate} /><label className="text-xs text-slate-500">QLV haircut %<Input type="number" min="0" max="50" value={qlvHaircut} onChange={(e) => setQlvHaircut(Number(e.target.value))} className="mt-1" /></label></div>
+            <Button variant="secondary" className="mb-5 w-full" onClick={estimateQlv}>Estimate QLV · {money(Math.round(comparableMedian * (1 - qlvHaircut / 100) / 25) * 25)}</Button>
+            <h3 className="mb-4 text-sm font-semibold">Trade economics</h3><div className="space-y-3">
               <MoneyRow label="Received watch QLV" value={analysis.receivedQlv} onChange={(v) => update('receivedQlv', v)} positive />
               <MoneyRow label="Your Tudor BB58 QLV" value={analysis.givenQlv} onChange={(v) => update('givenQlv', v)} />
               <MoneyRow label="Cash paid by you" value={analysis.cashPaid} onChange={(v) => update('cashPaid', v)} />
@@ -140,6 +168,9 @@ export default function Home() {
 
 function MoneyRow({ label, value, onChange, positive, warning }: { label: string; value: number; onChange: (v: string) => void; positive?: boolean; warning?: boolean }) {
   return <label className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3 text-sm"><span className="text-slate-600">{label}</span><span className="relative w-28"><span className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${positive ? 'text-emerald-600' : warning ? 'text-amber-600' : 'text-slate-400'}`}>$</span><Input inputMode="numeric" value={value} onChange={(e) => onChange(e.target.value)} className="h-8 pl-6 text-right font-mono" /></span></label>;
+}
+function CompactMoney({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
+  return <label className="text-xs text-slate-500">{label}<span className="relative mt-1 block"><span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">$</span><Input type="number" min="0" value={value} onChange={(e) => onChange(Number(e.target.value))} className="pl-6 font-mono" /></span></label>;
 }
 function Risk({ label, detail, score, tone }: { label: string; detail: string; score: string; tone: 'good' | 'warn' }) {
   return <div className="flex items-start justify-between gap-4 border-t py-3 first:border-t-0 first:pt-0"><div><div className="text-sm font-medium">{label}</div><div className="mt-0.5 text-xs leading-5 text-slate-500">{detail}</div></div><span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${tone === 'good' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{score}</span></div>;

@@ -25,5 +25,9 @@ export const valuations = sqliteTable('valuations', {
   liquidityAdjustmentCents: integer('liquidity_adjustment_cents').notNull(),
   economicAlphaCents: integer('economic_alpha_cents').notNull(),
   strategicScoreCents: integer('strategic_score_cents').notNull(),
+  dealerAskMedianCents: integer('dealer_ask_median_cents'),
+  privateAskMedianCents: integer('private_ask_median_cents'),
+  clearingEstimateCents: integer('clearing_estimate_cents'),
+  qlvHaircutBps: integer('qlv_haircut_bps'),
   createdAt: text('created_at').notNull(),
 }, (table) => [index('idx_valuations_listing_created').on(table.listingId, table.createdAt)]);
