@@ -1,17 +1,26 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== 'SCAN_PAGE') return;
-  try {
-    const listings = extractListings();
-    if (message.autoScroll) gentleScroll();
-    sendResponse({ ok: true, count: listings.length, listings });
-  } catch (error) { sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Could not read this page.' }); }
+  scanRenderedPage(message.autoScroll).then(sendResponse).catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Could not read this page.' }));
+  return true;
 });
 
+async function scanRenderedPage(autoScroll) {
+  const collected = new Map();
+  for (let pass = 0; pass < 3; pass += 1) {
+    for (const listing of extractListings()) collected.set(listing.id, listing);
+    if (autoScroll && pass < 2) gentleScroll();
+    if (pass < 2) await delay(1400);
+  }
+  const listings = [...collected.values()];
+  return { ok: true, count: listings.length, listings };
+}
+
 function extractListings() {
-  const anchors = [...document.querySelectorAll('a[href*="/marketplace/item/"]')];
+  const anchors = [...document.querySelectorAll('a[href], [role="link"]')];
   const seen = new Set(); const results = [];
   for (const anchor of anchors) {
-    const match = anchor.href.match(/\/marketplace\/item\/(\d+)/); if (!match || seen.has(match[1])) continue;
+    const href = anchor.href || anchor.getAttribute('href') || anchor.getAttribute('data-href') || '';
+    const match = href.match(/(?:facebook\.com)?\/marketplace\/item\/([^/?#]+)/i); if (!match || seen.has(match[1])) continue;
     seen.add(match[1]);
     const card = findCard(anchor); const cardText = card?.innerText || anchor.innerText || ''; const rawText = clean(cardText);
     const image = card?.querySelector('img') || anchor.querySelector('img');
@@ -68,3 +77,4 @@ function gentleScroll() {
 }
 
 const clean = (value) => String(value).replace(/\s+/g, ' ').trim();
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
