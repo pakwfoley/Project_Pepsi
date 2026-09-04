@@ -20,6 +20,13 @@ strategic score = economic alpha + liquidity adjustment
 
 The offer ceiling preserves a minimum $200 economic alpha. Human approval is mandatory in both the interface and database model.
 
+## OpenAI connectivity
+
+`POST /api/analyze` performs a minimal server-side Responses API check. It reads
+`OPENAI_API_KEY` only from the Sites runtime, never from browser code or the
+scanner extension. Local development and production builds do not require the
+secret; the endpoint returns `503 OPENAI_API_KEY_MISSING` until it is configured.
+
 ## Current ingestion contract
 
 The MVP accepts a listing URL, pasted listing text, confirmed brand/model/reference, asking price, and trade inputs. Reference normalization is deliberately human-confirmed for now; marketplace fetching and model-assisted extraction come next.
