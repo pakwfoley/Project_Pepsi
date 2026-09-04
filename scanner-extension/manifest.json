@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Project Pepsi Marketplace Scanner",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read-only, supervised discovery for Facebook Marketplace watch listings.",
-  "permissions": ["alarms", "notifications", "storage", "tabs"],
+  "permissions": ["alarms", "notifications", "scripting", "storage", "tabs"],
   "host_permissions": ["https://www.facebook.com/marketplace/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": { "default_title": "Project Pepsi Scanner", "default_popup": "popup.html" },

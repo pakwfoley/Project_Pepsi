@@ -69,7 +69,14 @@ async function runScan() {
   try {
     const tab = await chrome.tabs.get(settings.tabId);
     if (!tab.url?.startsWith('https://www.facebook.com/marketplace/')) throw new Error('The scanner tab is no longer on Marketplace.');
-    const response = await chrome.tabs.sendMessage(settings.tabId, { type: 'SCAN_PAGE', autoScroll: settings.autoScroll });
+    let response;
+    try {
+      response = await chrome.tabs.sendMessage(settings.tabId, { type: 'SCAN_PAGE', autoScroll: settings.autoScroll });
+    } catch (error) {
+      if (!String(error).includes('Receiving end does not exist')) throw error;
+      await chrome.scripting.executeScript({ target: { tabId: settings.tabId }, files: ['locations.js', 'content.js'] });
+      response = await chrome.tabs.sendMessage(settings.tabId, { type: 'SCAN_PAGE', autoScroll: settings.autoScroll });
+    }
     if (!response?.ok) throw new Error(response?.error || 'The Marketplace page did not respond.');
     await chrome.storage.local.set({ lastScanAt: new Date().toISOString(), pausedReason: '' });
     return { ok: true, count: response.count };

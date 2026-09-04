@@ -10,6 +10,8 @@ This is the first read-only Facebook discovery adapter. It scans one open Market
 4. Open Facebook Marketplace and configure the search you want monitored.
 5. Open the Project Pepsi extension and click **Start on this search**.
 
+If the Marketplace tab was already open when the extension was installed, version 0.1.1 injects the scanner automatically. Reloading the Facebook tab once is still a safe first troubleshooting step.
+
 Keep that Marketplace tab open. The extension scans it at the configured interval and gently advances through the results when auto-scroll is enabled.
 
 ## Location policy
