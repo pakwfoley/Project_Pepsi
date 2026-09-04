@@ -48,8 +48,8 @@ async function startScanner(settings) {
     return { ok: false, error: 'Open the Facebook Marketplace search you want scanned, then try again.' };
   }
   const next = { ...settings, enabled: true, tabId: tab.id, searchUrl: tab.url, pausedReason: '' };
-  await chrome.storage.local.set(next); await resetAlarm(next); await runScan();
-  return { ok: true };
+  await chrome.storage.local.set(next); await resetAlarm(next);
+  return runScan();
 }
 
 async function stopScanner() {
@@ -78,8 +78,9 @@ async function runScan() {
       response = await chrome.tabs.sendMessage(settings.tabId, { type: 'SCAN_PAGE', autoScroll: settings.autoScroll });
     }
     if (!response?.ok) throw new Error(response?.error || 'The Marketplace page did not respond.');
-    await chrome.storage.local.set({ lastScanAt: new Date().toISOString(), pausedReason: '' });
-    return { ok: true, count: response.count };
+    const stored = await storeListings(response.listings || [], settings.tabId);
+    await chrome.storage.local.set({ lastScanAt: new Date().toISOString(), pausedReason: '', lastVisibleCount: response.count });
+    return { ok: true, count: response.count, newCount: stored.newCount, flaggedCount: stored.flaggedCount };
   } catch (error) {
     const reason = error instanceof Error ? error.message : 'Scanner tab unavailable.';
     await chrome.storage.local.set({ pausedReason: reason });

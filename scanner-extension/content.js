@@ -2,9 +2,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type !== 'SCAN_PAGE') return;
   try {
     const listings = extractListings();
-    chrome.runtime.sendMessage({ type: 'LISTINGS_FOUND', listings });
     if (message.autoScroll) gentleScroll();
-    sendResponse({ ok: true, count: listings.length });
+    sendResponse({ ok: true, count: listings.length, listings });
   } catch (error) { sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Could not read this page.' }); }
 });
 
