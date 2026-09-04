@@ -19,12 +19,12 @@ export default function Home() {
   const [model, setModel] = useState('Seamaster Diver 300M');
   const [reference, setReference] = useState('210.30.42.20.01.001');
   const [ask, setAsk] = useState(3200);
-  const [rawText, setRawText] = useState('Full set, black dial, bracelet. Seller reports normal wear and no recent service.');
+  const [rawText, setRawText] = useState('');
   const [dealerAskMedian, setDealerAskMedian] = useState(3050);
   const [privateAskMedian, setPrivateAskMedian] = useState(2950);
   const [clearingEstimate, setClearingEstimate] = useState(2875);
   const [qlvHaircut, setQlvHaircut] = useState(10);
-  const [extraction, setExtraction] = useState<{ confidence: number; evidence: string[]; missing: string[] } | null>(null);
+  const [extraction, setExtraction] = useState<{ confidence: number; evidence: string[]; missing: string[]; fetched: boolean; warning: string; source: string } | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [stage, setStage] = useState(2);
   const [notice, setNotice] = useState('');
@@ -50,9 +50,9 @@ export default function Home() {
     setExtracting(true); setNotice('');
     try {
       const response = await fetch('/api/normalize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: listing, text: rawText }) });
-      const data = await response.json() as { brand: string; model: string; reference: string; ask: number | null; confidence: number; evidence: string[]; missing: string[] };
-      if (data.brand) setBrand(data.brand); if (data.model) setModel(data.model); if (data.reference) setReference(data.reference); if (data.ask) setAsk(data.ask);
-      setExtraction(data); setNotice(`Extraction complete · ${Math.round(data.confidence * 100)}% field coverage`);
+      const data = await response.json() as { brand: string; model: string; reference: string; ask: number | null; confidence: number; evidence: string[]; missing: string[]; fetched: boolean; warning: string; source: string };
+      setBrand(data.brand); setModel(data.model); setReference(data.reference); setAsk(data.ask ?? 0);
+      setExtraction(data); setNotice(data.warning || `Listing read successfully · ${Math.round(data.confidence * 100)}% field coverage`);
     } catch { setNotice('Could not extract this listing. You can still enter the fields manually.'); }
     finally { setExtracting(false); }
   };
@@ -109,7 +109,7 @@ export default function Home() {
     <div className="mx-auto max-w-[1480px] px-5 py-6 lg:px-9 lg:py-8">
       <section className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
         <div><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Opportunity workspace</p><h1 className="max-w-3xl font-heading text-3xl font-semibold tracking-[-.04em] md:text-4xl">Know the walk-away number before you negotiate.</h1></div>
-        <div className="flex min-w-0 gap-2 lg:w-[480px]"><Input aria-label="Listing URL" value={listing} onChange={(e) => setListing(e.target.value)} className="h-11 bg-white text-sm shadow-sm" /><Button disabled={saving} className="h-11 bg-[#0a68a5] px-4 hover:bg-[#08598d]" onClick={analyzeListing}>{saving ? <Loader2 className="animate-spin" /> : <Search />} Analyze & save</Button></div>
+        <div className="flex min-w-0 gap-2 lg:w-[480px]"><Input aria-label="Listing URL" value={listing} onChange={(e) => { setListing(e.target.value); setExtraction(null); }} className="h-11 bg-white text-sm shadow-sm" /><Button disabled={extracting} className="h-11 bg-[#0a68a5] px-4 hover:bg-[#08598d]" onClick={extractListing}>{extracting ? <Loader2 className="animate-spin" /> : <Search />} Read listing</Button></div>
       </section>
       {notice && <div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900"><CheckCircle2 className="size-4" />{notice}</div>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]">
@@ -125,7 +125,7 @@ export default function Home() {
               <Input aria-label="Reference" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference" className="font-mono" />
               <Input aria-label="Seller ask" type="number" min="0" value={ask} onChange={(e) => setAsk(Number(e.target.value))} placeholder="Seller ask" />
               <Textarea aria-label="Listing text" value={rawText} onChange={(e) => setRawText(e.target.value)} className="col-span-2 min-h-20 resize-none" placeholder="Paste listing description" />
-            </div>{extraction && <div className="mb-5 rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 text-xs"><div className="font-semibold text-cyan-900">Extraction evidence</div><div className="mt-1 leading-5 text-cyan-800">{extraction.evidence.join(' · ') || 'No structured fields found.'}</div>{extraction.missing.length > 0 && <div className="mt-1 text-amber-700">Confirm manually: {extraction.missing.join(', ')}</div>}</div>}
+            </div>{extraction && <div className={`mb-5 rounded-xl border p-3 text-xs ${extraction.warning ? 'border-amber-200 bg-amber-50' : 'border-cyan-100 bg-cyan-50/60'}`}><div className="font-semibold text-slate-900">{extraction.fetched ? `${extraction.source} page read` : 'Manual text mode'}</div><div className="mt-1 leading-5 text-slate-700">{extraction.evidence.join(' · ') || extraction.warning || 'No structured fields found.'}</div>{extraction.missing.length > 0 && <div className="mt-1 text-amber-700">Confirm manually: {extraction.missing.join(', ')}</div>}</div>}
             <div className="mb-4 flex items-center justify-between gap-3"><h3 className="text-sm font-semibold">Comparable-based QLV</h3><span className="text-xs text-slate-500">Median minus haircut</span></div>
             <div className="mb-3 grid grid-cols-2 gap-3"><CompactMoney label="Dealer ask median" value={dealerAskMedian} onChange={setDealerAskMedian} /><CompactMoney label="Private ask median" value={privateAskMedian} onChange={setPrivateAskMedian} /><CompactMoney label="Clearing estimate" value={clearingEstimate} onChange={setClearingEstimate} /><label className="text-xs text-slate-500">QLV haircut %<Input type="number" min="0" max="50" value={qlvHaircut} onChange={(e) => setQlvHaircut(Number(e.target.value))} className="mt-1" /></label></div>
             <Button variant="secondary" className="mb-5 w-full" onClick={estimateQlv}>Estimate QLV · {money(Math.round(comparableMedian * (1 - qlvHaircut / 100) / 25) * 25)}</Button>
@@ -141,7 +141,7 @@ export default function Home() {
               <div className="mt-5 border-t border-white/10 pt-4"><div className="flex justify-between text-sm"><span className="text-slate-400">Liquidity adjustment</span><span className="text-cyan-300">+{money(analysis.liquidityBonus)}</span></div><div className="mt-2 flex justify-between text-sm"><span className="text-slate-400">Strategic score</span><span className="font-semibold">{money(strategicScore)}</span></div></div>
               <div className="mt-5 rounded-xl border border-amber-300/15 bg-amber-300/8 p-3"><div className="text-xs uppercase tracking-wider text-amber-200">Hard offer ceiling</div><div className="mt-1 text-xl font-semibold">Tudor + {money(maxCash)}</div><p className="mt-1 text-xs leading-5 text-slate-400">Preserves the $200 minimum alpha. Language generation cannot exceed this limit.</p></div>
             </div>
-          </div>
+          </div><div className="border-t bg-[#f8fbfd] px-5 py-4 md:px-6"><Button disabled={saving || !brand || !model || !reference || ask <= 0} className="h-10 w-full bg-[#0a68a5] hover:bg-[#08598d]" onClick={analyzeListing}>{saving ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} Save completed analysis</Button></div>
         </section>
         <aside className="space-y-5">
           <section className="rounded-[22px] border bg-white p-5 shadow-[0_12px_40px_rgba(15,35,55,.06)] md:p-6">
