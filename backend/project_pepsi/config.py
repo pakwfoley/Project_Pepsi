@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     database_url: str = "sqlite+pysqlite:///./project_pepsi.db"
     openai_api_key: str = ""
+    project_pepsi_api_token: str = ""
     openai_model: str = "gpt-5.4-mini"
     allowed_origins: str = ""
     environment: str = "development"

@@ -1,8 +1,9 @@
+import hmac
 import logging
 import time
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,6 +22,15 @@ app = FastAPI(title="Project Pepsi API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=settings.origins, allow_origin_regex=r"chrome-extension://.*", allow_credentials=True, allow_methods=["GET", "POST"], allow_headers=["content-type"])
 
 
+def require_service_token(authorization: str = Header(default="")) -> None:
+    configured = settings.project_pepsi_api_token.strip()
+    if not configured:
+        raise HTTPException(status_code=503, detail={"code": "API_TOKEN_MISSING", "error": "Backend authentication is not configured."})
+    supplied = authorization.removeprefix("Bearer ").strip()
+    if not supplied or not hmac.compare_digest(supplied, configured):
+        raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "error": "A valid service token is required."})
+
+
 @app.middleware("http")
 async def request_context(request: Request, call_next):
     request_id = request.headers.get("x-request-id", str(uuid4())); started = time.perf_counter()
@@ -35,7 +45,7 @@ def health() -> dict:
 
 
 @app.post("/api/analyze")
-async def analyze(payload: dict, session: Session = Depends(get_session)) -> dict:
+async def analyze(payload: dict, _auth: None = Depends(require_service_token), session: Session = Depends(get_session)) -> dict:
     try:
         listing, rejected_indexes = parse_listing_submission(payload)
         analysis, metadata = await analyze_listing(listing, settings)
@@ -48,18 +58,18 @@ async def analyze(payload: dict, session: Session = Depends(get_session)) -> dic
 
 
 @app.get("/api/analyze")
-def candidates(session: Session = Depends(get_session)) -> dict:
+def candidates(_auth: None = Depends(require_service_token), session: Session = Depends(get_session)) -> dict:
     rows = session.scalars(select(ScannerCandidate).order_by(ScannerCandidate.updated_at.desc()).limit(30)).all()
     return {"candidates": [{"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": row.analysis, "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at} for row in rows]}
 
 
 @app.post("/api/economics")
-def economics(payload: TradeEconomicsInput) -> dict:
+def economics(payload: TradeEconomicsInput, _auth: None = Depends(require_service_token)) -> dict:
     return calculate_trade_economics(payload).__dict__
 
 
 @app.post("/api/normalize")
-def normalize(payload: NormalizeInput) -> dict:
+def normalize(payload: NormalizeInput, _auth: None = Depends(require_service_token)) -> dict:
     return normalize_listing(str(payload.url or ""), payload.text)
 
 
@@ -68,13 +78,13 @@ def _cents(value: float) -> int:
 
 
 @app.get("/api/listings")
-def listings(session: Session = Depends(get_session)) -> dict:
+def listings(_auth: None = Depends(require_service_token), session: Session = Depends(get_session)) -> dict:
     rows = session.execute(select(Listing, Valuation).join(Valuation, Valuation.listing_id == Listing.id).order_by(Listing.created_at.desc()).limit(8)).all()
     return {"listings": [{"id": listing.id, "url": listing.url, "source": listing.source, "brand": listing.brand, "model": listing.model, "reference": listing.reference, "askCents": listing.ask_cents, "confidence": listing.normalization_confidence, "createdAt": listing.created_at, "economicAlphaCents": valuation.economic_alpha_cents, "strategicScoreCents": valuation.strategic_score_cents} for listing, valuation in rows]}
 
 
 @app.post("/api/listings", status_code=201)
-def create_listing(payload: ManualListingInput, session: Session = Depends(get_session)) -> dict:
+def create_listing(payload: ManualListingInput, _auth: None = Depends(require_service_token), session: Session = Depends(get_session)) -> dict:
     host = str(payload.url).lower()
     source = next((name for name in ("reddit", "ebay", "facebook") if name in host), "manual")
     confidence = 0.96 if __import__("re").match(r"^(?:\d{3}(?:\.\d+)+|[A-Z]\d{4,})", payload.reference, __import__("re").I) else 0.78

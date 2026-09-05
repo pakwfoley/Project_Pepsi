@@ -814,5 +814,6 @@ Sites Frontend ───┘          │
 
 The existing private Sites frontend remains. The current Worker and D1 endpoints are a compatibility bridge during parity testing; they are not removed until FastAPI is deployed, migrated, and verified. The extension remains capture/transport only. FastAPI owns orchestration, validation, persistence, deterministic economics, and secret isolation. PostgreSQL becomes the target durable source of truth after cutover.
 
-This change adds one external trust boundary: the FastAPI hosting provider and managed PostgreSQL service. Production deployment must use HTTPS, a server-side secret manager, restricted CORS, database TLS, and an application authentication mechanism before clients are switched to it.
+At production cutover, the owner-only Sites Worker remains a thin authenticated gateway for the dashboard and extension. It proxies the existing `/api/*` contracts to FastAPI using a sealed, dedicated service token. It contains no valuation, normalization, persistence, or OpenAI logic. FastAPI rejects unauthenticated application endpoints; `/health` remains public for deployment monitoring. This keeps infrastructure credentials out of browser code while preserving the extension's capture/transport-only role.
 
+This change adds one external trust boundary: the FastAPI hosting provider and managed PostgreSQL service. Production deployment must use HTTPS, a server-side secret manager, restricted CORS, database TLS, and an application authentication mechanism before clients are switched to it.
