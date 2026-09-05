@@ -26,3 +26,7 @@ python -m pytest
 ## Cutover
 
 Deploy this service with PostgreSQL, run `alembic upgrade head`, set the frontend and extension backend URL, verify parity, and only then retire the Worker/D1 compatibility endpoints.
+
+## Railway
+
+Create a service from this repository with `/backend` as its root directory, then add a Railway PostgreSQL service. Set `DATABASE_URL` to the PostgreSQL private connection URL, `OPENAI_API_KEY` as a sealed variable, and `ALLOWED_ORIGINS` to the private Sites origin. The container runs migrations before starting and Railway checks `/health` before marking a deployment healthy.
