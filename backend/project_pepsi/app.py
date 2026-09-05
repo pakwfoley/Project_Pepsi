@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .auth import Principal, require_scope
-from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, parse_listing_submission
+from .contracts import ComparableValuationInput, ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, parse_listing_submission
 from .database import Listing, ScannerCandidate, Valuation, get_session
-from .economics import calculate_trade_economics
+from .economics import calculate_comparable_valuation, calculate_trade_economics
 from .normalization import normalize_listing
 from .openai_client import OpenAIConfigurationError, OpenAIResponseError, analyze_listing
 from .opportunity import calculate_review_priority
@@ -65,6 +65,11 @@ def candidates(principal: Principal = Depends(require_scope("read:listings")), s
 @app.post("/api/economics")
 def economics(payload: TradeEconomicsInput, _principal: Principal = Depends(require_scope("analyze:listings"))) -> dict:
     return calculate_trade_economics(payload).__dict__
+
+
+@app.post("/api/valuation")
+def valuation(payload: ComparableValuationInput, _principal: Principal = Depends(require_scope("analyze:listings"))) -> dict:
+    return calculate_comparable_valuation(payload).__dict__
 
 
 @app.post("/api/normalize")

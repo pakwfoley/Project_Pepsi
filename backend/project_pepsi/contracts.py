@@ -104,6 +104,17 @@ class TradeEconomicsInput(ContractModel):
     minimum_alpha: int = Field(default=200, ge=0)
 
 
+class ComparableValuationInput(ContractModel):
+    dealer_ask: int = Field(ge=0)
+    private_ask: int = Field(ge=0)
+    clearing_estimate: int = Field(ge=0)
+    qlv_haircut_percent: int = Field(default=10, ge=0, le=50)
+    asking_price: int = Field(default=0, ge=0)
+    transaction_cost: int = Field(default=0, ge=0)
+    risk_penalty: int = Field(default=0, ge=0)
+    minimum_alpha: int = Field(default=200, ge=0)
+
+
 class ManualListingInput(ContractModel):
     url: HttpUrl
     rawText: str = Field(default="", max_length=120_000)
