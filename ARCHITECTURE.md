@@ -611,6 +611,8 @@ Currently implemented or selected:
 
 The image transport contract is versioned and validated by FastAPI. Further contract changes should remain backward-aware and must not expose extension-internal state.
 
+Scanner analyses receive a deterministic review-priority score after semantic analysis. This score ranks which records deserve human attention using relevance, identification confidence, photo coverage, locality, risk signals, and missing evidence. It is not a valuation or expected-profit score. Until comparable data produces a defensible QLV, scanner candidates must remain explicitly marked `valuation_required` and must not receive a purchase or trade recommendation.
+
 ---
 
 ## 19. Near-Term Target

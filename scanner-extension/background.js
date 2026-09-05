@@ -41,7 +41,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     storeListings(message.listings, sender.tab?.id).then(sendResponse); return true;
   }
   if (message.type === 'AUTH_SIGN_IN') { signIn().then(sendResponse); return true; }
-  if (message.type === 'AUTH_SIGN_OUT') { chrome.storage.local.remove(['accessToken', 'accessTokenExpiresAt']).then(() => sendResponse({ ok: true })); return true; }
+  if (message.type === 'AUTH_STATUS') { authStatus().then(sendResponse); return true; }
+  if (message.type === 'AUTH_SIGN_OUT') { signOut().then(sendResponse); return true; }
 });
 
 const AUTH0_DOMAIN = 'dev-uxnklrcyku2o3xyz.us.auth0.com';
@@ -79,7 +80,20 @@ async function accessToken() {
   return state.accessToken;
 }
 
+async function authStatus() {
+  try { await accessToken(); return { authenticated: true }; }
+  catch { return { authenticated: false }; }
+}
+
+async function signOut() {
+  await stopScanner();
+  await chrome.storage.local.remove(['accessToken', 'accessTokenExpiresAt']);
+  return { ok: true };
+}
+
 async function startScanner(settings) {
+  try { await accessToken(); }
+  catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'Sign in to Project Pepsi before scanning.' }; }
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs[0];
   if (!tab?.id || !tab.url?.startsWith('https://www.facebook.com/marketplace/')) {
@@ -105,6 +119,7 @@ async function runScan() {
   const settings = await chrome.storage.local.get(DEFAULTS);
   if (!settings.enabled || !settings.tabId) return { ok: false, error: 'Scanner is stopped.' };
   try {
+    await accessToken();
     const tab = await chrome.tabs.get(settings.tabId);
     if (!tab.url?.startsWith('https://www.facebook.com/marketplace/')) throw new Error('The scanner tab is no longer on Marketplace.');
     let response;
@@ -148,21 +163,28 @@ async function storeListings(incoming, tabId) {
   const settings = await chrome.storage.local.get(DEFAULTS);
   if (tabId !== settings.tabId) return { ok: false };
   const records = { ...settings.listings }; let newCount = 0; let flaggedCount = 0; let aiCount = 0;
-  for (const listing of incoming) {
+  let collectorTabId = null;
+  try { for (const listing of incoming) {
     const prior = records[listing.id]; const scored = scoreListing(listing, settings);
     records[listing.id] = { ...prior, ...listing, ...scored, firstSeenAt: prior?.firstSeenAt || new Date().toISOString(), lastSeenAt: new Date().toISOString() };
     if (!prior) newCount += 1;
-    if (!prior?.aiAnalysis && !prior?.aiRequestedAt && scored.score >= 35 && aiCount < 3) {
+    const needsInitialAnalysis = !prior?.aiAnalysis && !prior?.aiRequestedAt;
+    const needsImageUpgrade = Boolean(prior?.aiAnalysis) && Number(prior?.imagesReviewed || 0) < 2 && !prior?.multiImageAttemptedAt;
+    if ((needsInitialAnalysis || needsImageUpgrade) && scored.score >= 35 && aiCount < 3) {
       records[listing.id].aiRequestedAt = new Date().toISOString();
+      if (needsImageUpgrade) records[listing.id].multiImageAttemptedAt = new Date().toISOString();
       try {
-        const imageData = await prepareImages((listing.images || []).map((sourceUrl, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_search_card' })));
+        const detail = await scrapeDetailListing(listing, collectorTabId);
+        collectorTabId = detail.collectorTabId;
+        const sources = detail.images?.length ? detail.images : (listing.images || []).map((sourceUrl, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_search_card' }));
+        const imageData = await prepareImages(sources);
         const packageForAnalysis = {
           contractVersion: 1,
           source: 'facebook_marketplace',
           sourceListingId: String(listing.id || ''),
           url: listing.url,
           title: listing.title,
-          rawText: listing.rawText || '',
+          rawText: detail.rawText || listing.rawText || '',
           price: listing.price ?? null,
           locationText: listing.locationText || '',
           distanceMiles: listing.distanceMiles ?? null,
@@ -184,10 +206,39 @@ async function storeListings(incoming, tabId) {
         // never abort the scan.
       }
     }
-  }
+  } } finally { if (collectorTabId) await chrome.tabs.remove(collectorTabId).catch(() => undefined); }
   const trimmed = Object.fromEntries(Object.entries(records).sort((a, b) => String(b[1].lastSeenAt).localeCompare(String(a[1].lastSeenAt))).slice(0, 500));
   await chrome.storage.local.set({ listings: trimmed, lastNewCount: newCount, lastFlaggedCount: flaggedCount });
   return { ok: true, newCount, flaggedCount };
+}
+
+async function scrapeDetailListing(listing, collectorTabId) {
+  let tabId = collectorTabId;
+  if (tabId) {
+    try { await chrome.tabs.update(tabId, { url: listing.url, active: false }); }
+    catch { tabId = null; }
+  }
+  if (!tabId) tabId = (await chrome.tabs.create({ url: listing.url, active: false })).id;
+  if (!tabId) return { ...listing, collectorTabId: null };
+  await waitForTab(tabId);
+  await delay(1500);
+  let response;
+  try { response = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE_DETAIL' }); }
+  catch {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ['locations.js', 'content.js'] });
+    response = await chrome.tabs.sendMessage(tabId, { type: 'SCRAPE_DETAIL' });
+  }
+  return response?.ok ? { ...response, collectorTabId: tabId } : { ...listing, collectorTabId: tabId };
+}
+
+function waitForTab(tabId) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => { chrome.tabs.onUpdated.removeListener(listener); resolve(); }, 12000);
+    const listener = (updatedId, info) => {
+      if (updatedId === tabId && info.status === 'complete') { clearTimeout(timeout); chrome.tabs.onUpdated.removeListener(listener); resolve(); }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
 }
 
 async function prepareImages(sources) {
@@ -213,3 +264,4 @@ async function prepareImages(sources) {
 }
 
 const formatMoney = (value) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value) || 0);
+const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));

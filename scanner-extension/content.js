@@ -1,8 +1,31 @@
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.type === 'SCRAPE_DETAIL') {
+    scrapeDetailPage().then(sendResponse).catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Could not read listing detail.' }));
+    return true;
+  }
   if (message.type !== 'SCAN_PAGE') return;
   scanRenderedPage(message.autoScroll).then(sendResponse).catch((error) => sendResponse({ ok: false, error: error instanceof Error ? error.message : 'Could not read this page.' }));
   return true;
 });
+
+async function scrapeDetailPage() {
+  await waitForDetailEvidence();
+  const rawText = clean(document.querySelector('[role="main"]')?.innerText || document.body?.innerText || '').slice(0, 12000);
+  const candidates = [...document.querySelectorAll('[role="main"] img, [role="dialog"] img')]
+    .map((image, sourcePosition) => ({ image, sourcePosition, sourceUrl: image.currentSrc || image.src || '' }))
+    .filter(({ image, sourceUrl }) => /^https:\/\//i.test(sourceUrl) && Math.max(image.naturalWidth, image.naturalHeight, image.width, image.height) >= 300);
+  const unique = [...new Map(candidates.map((candidate) => [candidate.sourceUrl, candidate])).values()];
+  const images = unique.slice(0, 6).map(({ sourceUrl, sourcePosition }, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_detail_gallery', sourcePosition }));
+  return { ok: true, rawText, images, discoveredImageCount: unique.length, selectionPolicy: 'visible_detail_images_no_semantic_ranking' };
+}
+
+async function waitForDetailEvidence() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const images = [...document.querySelectorAll('[role="main"] img, [role="dialog"] img')];
+    if (images.some((image) => Math.max(image.naturalWidth, image.naturalHeight, image.width, image.height) >= 300)) return;
+    await delay(500);
+  }
+}
 
 async function scanRenderedPage(autoScroll) {
   const collected = new Map();

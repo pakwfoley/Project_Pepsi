@@ -2,7 +2,9 @@
   <header><div class="mark">P</div><div><h1>Project Pepsi</h1><p>Marketplace scanner</p></div><span id="statusDot"></span></header>
   <main>
     <div id="message" role="status"></div>
-    <div class="actions"><button id="signIn" class="primary">Sign in</button><button id="signOut">Sign out</button></div>
+    <section id="signedOut" class="authGate" hidden><h2>Sign in to continue</h2><p>Your scanner settings and Marketplace tools become available after authentication.</p><button id="signIn" class="primary">Sign in to Project Pepsi</button></section>
+    <div id="authenticatedApp" hidden>
+    <div class="session"><span>Signed in</span><button id="signOut" class="textButton">Sign out</button></div>
     <label>Watch keywords<input id="keywords" placeholder="rolex, omega, tudor"></label>
     <label>Excluded terms<input id="excludedKeywords" placeholder="replica, homage, parts only"></label>
     <div class="grid"><label>Maximum ask<input id="maximumAsk" type="number" min="0"></label><label>Alert score<input id="minimumScore" type="number" min="0" max="100"></label></div>
@@ -11,5 +13,6 @@
     <div class="grid"><label>Scan every<input id="intervalMinutes" type="number" min="1" max="60"><small>minutes</small></label><label class="check"><input id="autoScroll" type="checkbox">Gently scroll results</label></div>
     <div class="actions"><button id="toggle" class="primary">Start on this search</button><button id="scanNow">Scan now</button></div>
     <section><div class="sectionHead"><h2>Flagged listings</h2><span id="count"></span></div><div id="listings" class="listings"></div></section>
+    </div>
   </main><script src="popup.js"></script>
 </body></html>

@@ -14,6 +14,7 @@ from .database import Listing, ScannerCandidate, Valuation, get_session
 from .economics import calculate_trade_economics
 from .normalization import normalize_listing
 from .openai_client import OpenAIConfigurationError, OpenAIResponseError, analyze_listing
+from .opportunity import calculate_review_priority
 from .repository import save_analysis
 from .services import create_manual_listing
 
@@ -52,7 +53,13 @@ async def analyze(payload: dict, principal: Principal = Depends(require_scope("a
 @app.get("/api/analyze")
 def candidates(principal: Principal = Depends(require_scope("read:listings")), session: Session = Depends(get_session)) -> dict:
     rows = session.scalars(select(ScannerCandidate).where(ScannerCandidate.owner_id == principal.user_id).order_by(ScannerCandidate.updated_at.desc()).limit(30)).all()
-    return {"candidates": [{"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": row.analysis, "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at} for row in rows]}
+    candidates_with_priority = []
+    for row in rows:
+        analysis = WatchAnalysis.model_validate(row.analysis)
+        priority = calculate_review_priority(analysis, len(row.image_metadata or []), row.distance_miles)
+        candidates_with_priority.append({"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": row.analysis, "reviewPriority": priority.as_dict(), "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at})
+    candidates_with_priority.sort(key=lambda item: item["reviewPriority"]["score"], reverse=True)
+    return {"candidates": candidates_with_priority}
 
 
 @app.post("/api/economics")
