@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, ChevronRight, CircleDollarSign, Database, Gauge, Loader2, Search, ShieldAlert, Sparkles, Watch } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowRight, CheckCircle2, ChevronRight, CircleDollarSign, Database, Gauge, Loader2, ShieldAlert, Sparkles, Watch } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,7 +19,7 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [analysis, setAnalysis] = useState(initial);
-  const [listing, setListing] = useState('https://www.reddit.com/r/Watchexchange/example');
+  const listing = 'https://www.reddit.com/r/Watchexchange/example';
   const [brand, setBrand] = useState('Omega');
   const [model, setModel] = useState('Seamaster Diver 300M');
   const [reference, setReference] = useState('210.30.42.20.01.001');
@@ -115,11 +116,15 @@ export default function Home() {
         <div className="flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-300/8 px-3 py-1.5 text-xs text-emerald-200"><span className="size-1.5 rounded-full bg-emerald-300" /> Human approval enforced</div>
       </div>
     </header>
+    <section className="hero-shell relative overflow-hidden border-b border-white/8 bg-[#07101d] text-white">
+      <div className="hero-orbit" aria-hidden="true" />
+      <div className="mx-auto flex min-h-48 max-w-[1480px] items-center px-5 py-8 lg:px-9">
+        <div className="relative z-10 max-w-xl"><p className="mb-3 text-xs font-semibold uppercase tracking-[.28em] text-cyan-300">The GMT-Master II mission</p><h1 className="font-heading text-4xl font-semibold tracking-[-.055em] md:text-6xl">Project <span className="pepsi-gradient">Pepsi</span></h1><p className="mt-3 max-w-md text-sm leading-6 text-slate-300">Your highest-priority watch opportunities, ranked for human review.</p></div>
+        <Image src="/project-pepsi-gmt.png" alt="Red and blue GMT watch" fill sizes="100vw" priority className="hero-watch object-cover object-center" />
+      </div>
+    </section>
     <div className="mx-auto max-w-[1480px] px-5 py-6 lg:px-9 lg:py-8">
-      <section className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div><p className="mb-2 text-xs font-semibold uppercase tracking-[.18em] text-cyan-700">Opportunity workspace</p><h1 className="max-w-3xl font-heading text-3xl font-semibold tracking-[-.04em] md:text-4xl">Know the walk-away number before you negotiate.</h1></div>
-        <div className="flex min-w-0 gap-2 lg:w-[480px]"><Input aria-label="Listing URL" value={listing} onChange={(e) => { setListing(e.target.value); setExtraction(null); }} className="h-11 bg-white text-sm shadow-sm" /><Button disabled={extracting} className="h-11 bg-[#0a68a5] px-4 hover:bg-[#08598d]" onClick={extractListing}>{extracting ? <Loader2 className="animate-spin" /> : <Search />} Read listing</Button></div>
-      </section>
+      <ScannerQueue candidates={scannerCandidates} onRefresh={loadScannerCandidates} />
       {notice && <div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900"><CheckCircle2 className="size-4" />{notice}</div>}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]">
         <section className="overflow-hidden rounded-[22px] border bg-card shadow-[0_12px_40px_rgba(15,35,55,.08)]">
@@ -167,16 +172,19 @@ export default function Home() {
         </aside>
       </div>
       <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6">
-        <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Sparkles className="size-4 text-cyan-700" /><h2 className="font-semibold">Scanner review queue</h2></div><Button variant="outline" size="sm" onClick={() => void loadScannerCandidates()}>Refresh</Button></div>
-        {scannerCandidates.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No scanner analyses have reached the backend yet.</p> : <div className="grid gap-3 lg:grid-cols-2">{scannerCandidates.map((item, index) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-xl border p-4 transition hover:border-cyan-300 hover:bg-cyan-50/30"><div className="flex items-start gap-3"><div className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#07101d] text-lg font-semibold text-cyan-300"><span className="sr-only">Priority rank</span>{index + 1}</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{item.analysis.identification?.brand || item.title} {item.analysis.identification?.model || ''}</div><div className="mt-1 font-mono text-xs text-slate-500">{item.analysis.identification?.reference || 'Reference unknown'} · {item.imageMetadata.length} image{item.imageMetadata.length === 1 ? '' : 's'}</div></div><div className="text-right"><div className="text-2xl font-semibold tracking-[-.04em]">{item.reviewPriority.score}</div><div className="text-[11px] uppercase text-slate-500">priority</div></div></div><div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-semibold uppercase text-cyan-800">{item.reviewPriority.posture}</span><span className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase ${item.reviewPriority.risk_level === 'high' ? 'bg-rose-100 text-rose-700' : item.reviewPriority.risk_level === 'moderate' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}>{item.reviewPriority.risk_level} risk</span><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-600">Valuation required</span></div><p className="mt-3 text-sm leading-5 text-slate-600">{item.analysis.rationale || 'Analysis available.'}</p><p className="mt-2 text-xs leading-5 text-slate-500">{item.reviewPriority.factors.join(' · ')}</p>{item.analysis.questions?.length ? <p className="mt-2 text-xs leading-5 text-slate-500"><strong>Next questions:</strong> {item.analysis.questions.slice(0, 2).join(' · ')}</p> : null}</div></div></a>)}</div>}
-      </section>
-      <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6">
         <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Database className="size-4 text-cyan-700" /><h2 className="font-semibold">Saved analyses</h2></div><span className="text-xs text-slate-500">Persistent history</span></div>
         {savedListings.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No saved listings yet. Analyze the listing above to create the first record.</p> : <div className="divide-y overflow-hidden rounded-xl border">{savedListings.map((item) => <div key={item.id} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[110px_minmax(0,1fr)_150px_120px] md:items-center"><span className="w-fit rounded-full bg-slate-100 px-2 py-1 text-xs uppercase text-slate-600">{item.source}</span><div><div className="font-medium">{item.brand} {item.model}</div><div className="font-mono text-xs text-slate-500">{item.reference} · {Math.round(item.confidence * 100)}% match</div></div><div className="text-slate-500">Ask {money(item.askCents / 100)}</div><div className={`font-mono font-semibold ${item.economicAlphaCents >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{money(item.economicAlphaCents / 100)} alpha</div></div>)}</div>}
       </section>
       <section className="mt-5 rounded-[22px] border bg-white p-5 md:p-6"><div className="mb-5 flex items-end justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-slate-500">Path to GMT-Master II</p><h2 className="mt-1 text-xl font-semibold tracking-[-.03em]">Trade graph</h2></div><span className="text-sm text-slate-500">Liquidity-weighted route</span></div><div className="flex items-center gap-2 overflow-x-auto pb-1"><GraphNode name="Tudor BB58" value="$2,450" active /><ArrowRight className="size-4 shrink-0 text-slate-300" /><GraphNode name="Omega SMP" value="$2,750" next /><ArrowRight className="size-4 shrink-0 text-slate-300" /><GraphNode name="Rolex Explorer" value="$6,300" /><ArrowRight className="size-4 shrink-0 text-slate-300" /><GraphNode name="GMT-Master II" value="Target" /></div></section>
     </div>
   </main>;
+}
+
+function ScannerQueue({ candidates, onRefresh }: { candidates: ScannerCandidate[]; onRefresh: () => Promise<void> }) {
+  return <section className="mb-5 rounded-[22px] border bg-white p-5 shadow-[0_14px_45px_rgba(15,35,55,.08)] md:p-6">
+    <div className="mb-4 flex items-center justify-between"><div className="flex items-center gap-2"><Sparkles className="size-4 text-cyan-700" /><div><h2 className="font-semibold">Priority queue</h2><p className="mt-0.5 text-xs text-slate-500">Evidence-ranked · valuation remains required</p></div></div><Button variant="outline" size="sm" onClick={() => void onRefresh()}>Refresh</Button></div>
+    {candidates.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No scanner analyses have reached the backend yet.</p> : <div className="grid gap-3 lg:grid-cols-2">{candidates.map((item, index) => <a key={item.id} href={item.url} target="_blank" rel="noreferrer" className="rounded-xl border p-4 transition hover:border-cyan-300 hover:bg-cyan-50/30"><div className="flex items-start gap-3"><div className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#07101d] text-lg font-semibold text-cyan-300"><span className="sr-only">Priority rank</span>{index + 1}</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div><div className="font-medium">{item.analysis.identification?.brand || item.title} {item.analysis.identification?.model || ''}</div><div className="mt-1 font-mono text-xs text-slate-500">{item.analysis.identification?.reference || 'Reference unknown'} · {item.imageMetadata.length} image{item.imageMetadata.length === 1 ? '' : 's'}</div></div><div className="text-right"><div className="text-2xl font-semibold tracking-[-.04em]">{item.reviewPriority.score}</div><div className="text-[11px] uppercase text-slate-500">priority</div></div></div><div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-semibold uppercase text-cyan-800">{item.reviewPriority.posture}</span><span className={`rounded-full px-2 py-1 text-[11px] font-semibold uppercase ${item.reviewPriority.risk_level === 'high' ? 'bg-rose-100 text-rose-700' : item.reviewPriority.risk_level === 'moderate' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'}`}>{item.reviewPriority.risk_level} risk</span><span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold uppercase text-slate-600">Valuation required</span></div><p className="mt-3 text-sm leading-5 text-slate-600">{item.analysis.rationale || 'Analysis available.'}</p><p className="mt-2 text-xs leading-5 text-slate-500">{item.reviewPriority.factors.join(' · ')}</p>{item.analysis.questions?.length ? <p className="mt-2 text-xs leading-5 text-slate-500"><strong>Next questions:</strong> {item.analysis.questions.slice(0, 2).join(' · ')}</p> : null}</div></div></a>)}</div>}
+  </section>;
 }
 
 function MoneyRow({ label, value, onChange, positive, warning }: { label: string; value: number; onChange: (v: string) => void; positive?: boolean; warning?: boolean }) {
