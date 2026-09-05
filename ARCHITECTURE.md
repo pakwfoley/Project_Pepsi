@@ -797,4 +797,22 @@ When implementation conflicts with this document:
 
 Architecture should evolve deliberately rather than emerging accidentally from generated code.
 
+---
+
+## 24. Backend Migration Decision
+
+Project Pepsi is migrating its backend authority from the Sites/Cloudflare Worker implementation to a standalone Python FastAPI service with PostgreSQL.
+
+Target topology:
+
+```text
+Chrome Extension ─┐
+                  ├──► FastAPI Backend ──► PostgreSQL
+Sites Frontend ───┘          │
+                             └──► OpenAI Responses API
+```
+
+The existing private Sites frontend remains. The current Worker and D1 endpoints are a compatibility bridge during parity testing; they are not removed until FastAPI is deployed, migrated, and verified. The extension remains capture/transport only. FastAPI owns orchestration, validation, persistence, deterministic economics, and secret isolation. PostgreSQL becomes the target durable source of truth after cutover.
+
+This change adds one external trust boundary: the FastAPI hosting provider and managed PostgreSQL service. Production deployment must use HTTPS, a server-side secret manager, restricted CORS, database TLS, and an application authentication mechanism before clients are switched to it.
 

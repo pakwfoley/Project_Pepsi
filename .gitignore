@@ -36,3 +36,9 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# Python backend
+backend/.venv/
+backend/.pytest_cache/
+backend/**/__pycache__/
+backend/*.db

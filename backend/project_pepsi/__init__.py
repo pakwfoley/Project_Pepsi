@@ -1,0 +1,1 @@
+"""Project Pepsi FastAPI backend."""
