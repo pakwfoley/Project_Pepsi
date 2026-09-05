@@ -5,6 +5,7 @@ import { ArrowRight, CheckCircle2, ChevronRight, CircleDollarSign, Database, Gau
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { authClient, authorizedFetch } from '@/app/auth-client';
 
 type Analysis = { receivedQlv: number; givenQlv: number; cashPaid: number; costs: number; riskPenalty: number; liquidityBonus: number };
 type SavedListing = { id: string; source: string; brand: string; model: string; reference: string; askCents: number; confidence: number; economicAlphaCents: number; strategicScoreCents: number; createdAt: string };
@@ -14,6 +15,8 @@ const stages = ['Discovered', 'Valued', 'Qualify seller', 'Ask questions', 'Open
 const money = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 
 export default function Home() {
+  const [authReady, setAuthReady] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   const [analysis, setAnalysis] = useState(initial);
   const [listing, setListing] = useState('https://www.reddit.com/r/Watchexchange/example');
   const [brand, setBrand] = useState('Omega');
@@ -42,17 +45,17 @@ export default function Home() {
   };
 
   const loadListings = async () => {
-    const response = await fetch('/api/listings');
+    const response = await authorizedFetch('/api/listings');
     if (!response.ok) return;
     const data = await response.json() as { listings: SavedListing[] };
     setSavedListings(data.listings);
   };
-  const loadScannerCandidates = async () => { const response = await fetch('/api/analyze'); if (response.ok) { const data = await response.json() as { candidates: ScannerCandidate[] }; setScannerCandidates(data.candidates); } };
+  const loadScannerCandidates = async () => { const response = await authorizedFetch('/api/analyze'); if (response.ok) { const data = await response.json() as { candidates: ScannerCandidate[] }; setScannerCandidates(data.candidates); } };
 
   const extractListing = async () => {
     setExtracting(true); setNotice('');
     try {
-      const response = await fetch('/api/normalize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: listing, text: rawText }) });
+      const response = await authorizedFetch('/api/normalize', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: listing, text: rawText }) });
       const data = await response.json() as { brand: string; model: string; reference: string; ask: number | null; confidence: number; evidence: string[]; missing: string[]; fetched: boolean; warning: string; source: string };
       setBrand(data.brand); setModel(data.model); setReference(data.reference); setAsk(data.ask ?? 0);
       setExtraction(data); setNotice(data.warning || `Listing read successfully · ${Math.round(data.confidence * 100)}% field coverage`);
@@ -69,7 +72,7 @@ export default function Home() {
   const analyzeListing = async () => {
     setSaving(true); setNotice('');
     try {
-      const response = await fetch('/api/listings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+      const response = await authorizedFetch('/api/listings', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
         url: listing, rawText, brand, model, reference, ask, ...analysis, dealerAskMedian, privateAskMedian, clearingEstimate, qlvHaircutBps: qlvHaircut * 100,
       }) });
       const data = await response.json() as { error?: string; confidence?: number };
@@ -81,7 +84,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    void loadListings(); void loadScannerCandidates();
+    void authClient().then(async (client) => { const authenticated = await client.isAuthenticated(); setSignedIn(authenticated); setAuthReady(true); if (authenticated) await Promise.all([loadListings(), loadScannerCandidates()]); });
     const modelContext = (document as Document & { modelContext?: { registerTool?: (tool: unknown, options?: unknown) => void } }).modelContext;
     if (!modelContext?.registerTool) return;
     const lifecycle = new AbortController();
@@ -101,6 +104,9 @@ export default function Home() {
     }, { signal: lifecycle.signal })).catch(() => undefined);
     return () => lifecycle.abort();
   }, []);
+
+  if (!authReady) return <main className="grid min-h-screen place-items-center bg-[#07101d] text-white"><Loader2 className="size-6 animate-spin" /></main>;
+  if (!signedIn) return <main className="grid min-h-screen place-items-center bg-[#07101d] p-6 text-white"><section className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 text-center"><Watch className="mx-auto mb-4 size-9 text-cyan-300" /><h1 className="text-2xl font-semibold">Project Pepsi</h1><p className="mt-2 text-sm text-slate-300">Sign in to access your private watch intelligence workspace.</p><Button className="mt-6 w-full bg-cyan-700 hover:bg-cyan-600" onClick={() => void authClient().then((client) => client.loginWithRedirect())}>Sign in</Button></section></main>;
 
   return <main className="min-h-screen bg-background text-foreground">
     <header className="border-b border-white/8 bg-[#07101d]/90 px-5 py-4 text-white backdrop-blur-xl lg:px-9">

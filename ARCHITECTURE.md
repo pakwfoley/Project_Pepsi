@@ -69,7 +69,7 @@ AI:
 OpenAI Responses API
 
 Secrets:
-OPENAI_API_KEY in the FastAPI runtime; RAILWAY_API_TOKEN in Sites; both server-side only
+OPENAI_API_KEY in the FastAPI runtime only; OAuth clients contain public configuration only
 ```
 
 The production Site is private.
@@ -813,7 +813,7 @@ Sites Frontend ───┘                                      │
 
 The existing private Sites frontend remains. The Worker is an authenticated transport gateway, not a second backend. D1 is a **LEGACY/BRIDGE** artifact and must not receive new production writes. The extension remains capture/transport only. FastAPI owns orchestration, validation, persistence, deterministic economics, and secret isolation. PostgreSQL is the durable source of truth.
 
-In production, the owner-only Sites Worker is a thin authenticated gateway for the dashboard and extension. It proxies the existing `/api/*` contracts to FastAPI using a sealed, dedicated service token. It contains no valuation, normalization, persistence, or OpenAI logic. FastAPI rejects unauthenticated application endpoints; `/health` remains public for deployment monitoring. This keeps infrastructure credentials out of browser code while preserving the extension's capture/transport-only role.
+In production, Auth0 is the managed identity provider. The dashboard and Chrome extension are public OAuth clients using Authorization Code + PKCE and contain no client secret. They send short-lived JWT access tokens to FastAPI, which validates the RS256 signature through the provider JWKS, issuer, audience, expiration, subject, and required scope. PostgreSQL resources are keyed and queried by the authenticated `sub`. The Sites Worker remains a transport gateway for dashboard same-origin requests and forwards the user's bearer token unchanged; the extension calls FastAPI directly. `/health` remains public for deployment monitoring.
 
 This change adds one external trust boundary: the FastAPI hosting provider and managed PostgreSQL service. Production deployment must use HTTPS, a server-side secret manager, restricted CORS, database TLS, and an application authentication mechanism before clients are switched to it.
 

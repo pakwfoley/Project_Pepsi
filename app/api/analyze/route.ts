@@ -5,8 +5,7 @@ function corsHeaders(request: Request) {
   return {
     'access-control-allow-origin': origin.startsWith('chrome-extension://') ? origin : 'null',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
-    'access-control-allow-headers': 'content-type',
-    'access-control-allow-credentials': 'true',
+    'access-control-allow-headers': 'authorization, content-type',
     vary: 'Origin',
   };
 }

@@ -152,11 +152,13 @@ place it in the Chrome extension
 include it in test fixtures
 ```
 
-Read the key from the Sites runtime environment.
+Read the key from the FastAPI runtime environment.
 
 Missing configuration should fail explicitly and safely.
 
 Do not ask a developer to paste production secrets into source code or agent conversation context when a runtime secret facility exists.
+
+Browser and extension authentication uses managed OAuth/OIDC Authorization Code + PKCE. Public clients must not contain a client secret. FastAPI must validate access-token signature, issuer, audience, expiration, subject, and required scopes, and must scope persisted resources by the authenticated subject.
 
 ---
 
@@ -565,5 +567,4 @@ strict about transaction authority
 The system exists to improve human decision-making and execution efficiency.
 
 It should not create confidence where the evidence does not justify it.
-
 

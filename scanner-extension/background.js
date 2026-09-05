@@ -12,7 +12,7 @@ const DEFAULTS = {
   homeLongitude: -120.9717,
   maximumDistanceMiles: 100,
   localOnly: true,
-  backendUrl: 'https://project-pepsi-trade-intelligence.patrickfoley2017.chatgpt.site',
+  backendUrl: 'https://projectpepsi-production.up.railway.app',
   listings: {},
 };
 
@@ -40,7 +40,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'LISTINGS_FOUND') {
     storeListings(message.listings, sender.tab?.id).then(sendResponse); return true;
   }
+  if (message.type === 'AUTH_SIGN_IN') { signIn().then(sendResponse); return true; }
+  if (message.type === 'AUTH_SIGN_OUT') { chrome.storage.local.remove(['accessToken', 'accessTokenExpiresAt']).then(() => sendResponse({ ok: true })); return true; }
 });
+
+const AUTH0_DOMAIN = 'dev-uxnklrcyku2o3xyz.us.auth0.com';
+const AUTH0_CLIENT_ID = 'jthSzbjxVTRm16BJyAVDhN1L79vf1gWE';
+const AUTH0_AUDIENCE = 'https://api.project-pepsi';
+const AUTH0_SCOPES = 'openid profile email read:listings write:listings analyze:listings';
+
+const base64Url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function signIn() {
+  try {
+    const verifier = base64Url(crypto.getRandomValues(new Uint8Array(64)));
+    const challenge = base64Url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+    const state = base64Url(crypto.getRandomValues(new Uint8Array(24)));
+    const redirectUri = chrome.identity.getRedirectURL();
+    const authorize = new URL(`https://${AUTH0_DOMAIN}/authorize`);
+    authorize.search = new URLSearchParams({ response_type: 'code', client_id: AUTH0_CLIENT_ID, redirect_uri: redirectUri, audience: AUTH0_AUDIENCE, scope: AUTH0_SCOPES, code_challenge: challenge, code_challenge_method: 'S256', state }).toString();
+    const callback = await chrome.identity.launchWebAuthFlow({ url: authorize.toString(), interactive: true });
+    if (!callback) throw new Error('Sign-in did not return to the extension.');
+    const returned = new URL(callback);
+    if (returned.searchParams.get('state') !== state) throw new Error('OAuth state validation failed.');
+    const code = returned.searchParams.get('code');
+    if (!code) throw new Error(returned.searchParams.get('error_description') || 'Authorization code missing.');
+    const response = await fetch(`https://${AUTH0_DOMAIN}/oauth/token`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', client_id: AUTH0_CLIENT_ID, code, code_verifier: verifier, redirect_uri: redirectUri }) });
+    const tokens = await response.json();
+    if (!response.ok || !tokens.access_token) throw new Error(tokens.error_description || 'Token exchange failed.');
+    await chrome.storage.local.set({ accessToken: tokens.access_token, accessTokenExpiresAt: Date.now() + Number(tokens.expires_in || 3600) * 1000 });
+    return { ok: true };
+  } catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'Sign-in failed.' }; }
+}
+
+async function accessToken() {
+  const state = await chrome.storage.local.get(['accessToken', 'accessTokenExpiresAt']);
+  if (!state.accessToken || Number(state.accessTokenExpiresAt) <= Date.now() + 30_000) throw new Error('Sign in to Project Pepsi before scanning.');
+  return state.accessToken;
+}
 
 async function startScanner(settings) {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -131,7 +168,7 @@ async function storeListings(incoming, tabId) {
           distanceMiles: listing.distanceMiles ?? null,
           images: imageData,
         };
-        const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(packageForAnalysis) });
+        const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await accessToken()}` }, body: JSON.stringify(packageForAnalysis) });
         const result = await response.json();
         if (!response.ok) throw new Error(response.status === 401 ? 'Sign into the private Project Pepsi site, then scan again.' : result.error || 'Backend analysis failed.');
         records[listing.id].rawText = packageForAnalysis.rawText; records[listing.id].aiAnalysis = result.analysis; records[listing.id].aiModel = result.model; records[listing.id].imagesReviewed = result.ingestion?.submittedImages?.length || 0; aiCount += 1;

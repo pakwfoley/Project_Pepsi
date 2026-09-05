@@ -4,8 +4,8 @@
   "name": "Project Pepsi Marketplace Scanner",
   "version": "0.4.0",
   "description": "Read-only, supervised discovery for Facebook Marketplace watch listings.",
-  "permissions": ["alarms", "notifications", "scripting", "storage", "tabs"],
-  "host_permissions": ["https://www.facebook.com/marketplace/*", "https://*.fbcdn.net/*", "https://project-pepsi-trade-intelligence.patrickfoley2017.chatgpt.site/*"],
+  "permissions": ["alarms", "identity", "notifications", "scripting", "storage", "tabs"],
+  "host_permissions": ["https://www.facebook.com/marketplace/*", "https://*.fbcdn.net/*", "https://projectpepsi-production.up.railway.app/*", "https://dev-uxnklrcyku2o3xyz.us.auth0.com/*"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": { "default_title": "Project Pepsi Scanner", "default_popup": "popup.html" },
   "content_scripts": [{

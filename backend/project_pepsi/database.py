@@ -17,6 +17,7 @@ class ScannerCandidate(Base):
     __table_args__ = (UniqueConstraint("source", "source_listing_id"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    owner_id: Mapped[str] = mapped_column(String(255), index=True)
     source: Mapped[str] = mapped_column(String(40), default="facebook_marketplace")
     source_listing_id: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(Text)
@@ -38,6 +39,7 @@ class Listing(Base):
     __tablename__ = "listings"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    owner_id: Mapped[str] = mapped_column(String(255), index=True)
     url: Mapped[str] = mapped_column(Text)
     source: Mapped[str] = mapped_column(String(40))
     raw_text: Mapped[str] = mapped_column(Text, default="")
