@@ -38,18 +38,13 @@ Chrome Extension
         │
         │ listing metadata + images
         ▼
-Project Pepsi Backend
-OpenAI Sites / Cloudflare Workers
+Private Sites Worker (authenticated gateway only)
         │
-        ├──────────────► Cloudflare D1
-        │                 listing data
-        │                 valuation data
-        │                 analysis history
-        │
+        ▼
+Python FastAPI backend
+        ├──────────────► PostgreSQL (system of record)
         └──────────────► OpenAI Responses API
-                          semantic analysis
-                          visual analysis
-                          structured output
+                          semantic and visual analysis
 ```
 
 Current production environment:
@@ -58,11 +53,14 @@ Current production environment:
 Hosting:
 OpenAI Sites
 
-Runtime:
-Cloudflare Workers
+Gateway runtime:
+Cloudflare Workers (transport/authentication only)
+
+Backend runtime:
+Python FastAPI on Railway
 
 Database:
-Cloudflare D1
+PostgreSQL on Railway
 
 Marketplace ingestion:
 Chrome extension running in the user's authenticated browser
@@ -70,8 +68,8 @@ Chrome extension running in the user's authenticated browser
 AI:
 OpenAI Responses API
 
-Secret:
-OPENAI_API_KEY stored server-side only
+Secrets:
+OPENAI_API_KEY in the FastAPI runtime; RAILWAY_API_TOKEN in Sites; both server-side only
 ```
 
 The production Site is private.
@@ -545,12 +543,12 @@ Before a binding deal, the user remains the authority.
 
 It MUST:
 
-* Be stored using Sites runtime secret/environment facilities.
+* Be stored in the FastAPI hosting runtime's secret/environment facilities.
 * Be available only to server-side execution.
 * Never enter extension bundles.
 * Never enter client JavaScript.
 * Never be logged.
-* Never be persisted to D1.
+* Never be persisted to PostgreSQL, D1, or any application data store.
 * Never be returned by an API endpoint.
 * Never be committed to Git.
 
@@ -566,7 +564,7 @@ Current expected missing-secret behavior:
 
 ## 17. Persistence
 
-Cloudflare D1 is currently the application database.
+PostgreSQL is the production system of record. Cloudflare D1 is **LEGACY/BRIDGE** only: its binding and historical Worker schema remain temporarily for migration/rollback inspection, but production routes do not read from or write to it. New features must not add D1 persistence.
 
 Likely persisted domains include:
 
@@ -599,8 +597,10 @@ Currently implemented or selected:
 
 ```text
 ✓ Private OpenAI Site
-✓ Cloudflare Workers runtime
-✓ Cloudflare D1
+✓ Cloudflare Worker authenticated gateway
+✓ FastAPI backend on Railway
+✓ PostgreSQL system of record
+⚠ Cloudflare D1 retained as LEGACY/BRIDGE only
 ✓ Chrome extension Marketplace ingestion
 ✓ Authenticated browser-based Facebook capture
 ✓ Server-side /api/analyze endpoint
@@ -609,9 +609,7 @@ Currently implemented or selected:
 ✓ Responses API integration architecture
 ```
 
-Image transport and backend design are still being refined.
-
-The backend may be rewritten before further functionality is added.
+The image transport contract is versioned and validated by FastAPI. Further contract changes should remain backward-aware and must not expose extension-internal state.
 
 ---
 
@@ -682,7 +680,7 @@ Image analysis
 Valuation
 Risk scoring
 Offer recommendation
-D1 persistence
+PostgreSQL persistence
 ```
 
 Human performs all communication and transactions.
@@ -775,7 +773,8 @@ Do not expand scope casually.
 | Up to 6 listing images                       | Current policy       | Better evidence coverage without uncontrolled payload growth |
 | ~2048 px maximum long edge                   | Current policy       | Preserve useful watch detail while bounding payload          |
 | OpenAI API calls server-side only            | Required             | Protect API credentials                                      |
-| D1 for persistence                           | Current architecture | Native fit with deployed runtime                             |
+| PostgreSQL for persistence                   | Current architecture | Production system of record behind FastAPI                   |
+| D1 persistence                               | LEGACY/BRIDGE        | Retained only for migration/rollback inspection              |
 | QLV as primary accounting value              | Accepted             | Avoid inflated asking-price economics                        |
 | Risk treated economically                    | Accepted             | Expected value should reflect fraud/authenticity uncertainty |
 | Human approval before transaction commitment | Required             | Foundational control boundary                                |
@@ -801,19 +800,38 @@ Architecture should evolve deliberately rather than emerging accidentally from g
 
 ## 24. Backend Migration Decision
 
-Project Pepsi is migrating its backend authority from the Sites/Cloudflare Worker implementation to a standalone Python FastAPI service with PostgreSQL.
+Project Pepsi has migrated backend authority from the Sites/Cloudflare Worker implementation to a standalone Python FastAPI service with PostgreSQL.
 
-Target topology:
+Production topology:
 
 ```text
 Chrome Extension ─┐
-                  ├──► FastAPI Backend ──► PostgreSQL
-Sites Frontend ───┘          │
-                             └──► OpenAI Responses API
+                  ├──► Private Sites Gateway ──► FastAPI Backend ──► PostgreSQL
+Sites Frontend ───┘                                      │
+                                                        └──► OpenAI Responses API
 ```
 
-The existing private Sites frontend remains. The current Worker and D1 endpoints are a compatibility bridge during parity testing; they are not removed until FastAPI is deployed, migrated, and verified. The extension remains capture/transport only. FastAPI owns orchestration, validation, persistence, deterministic economics, and secret isolation. PostgreSQL becomes the target durable source of truth after cutover.
+The existing private Sites frontend remains. The Worker is an authenticated transport gateway, not a second backend. D1 is a **LEGACY/BRIDGE** artifact and must not receive new production writes. The extension remains capture/transport only. FastAPI owns orchestration, validation, persistence, deterministic economics, and secret isolation. PostgreSQL is the durable source of truth.
 
 At production cutover, the owner-only Sites Worker remains a thin authenticated gateway for the dashboard and extension. It proxies the existing `/api/*` contracts to FastAPI using a sealed, dedicated service token. It contains no valuation, normalization, persistence, or OpenAI logic. FastAPI rejects unauthenticated application endpoints; `/health` remains public for deployment monitoring. This keeps infrastructure credentials out of browser code while preserving the extension's capture/transport-only role.
 
 This change adds one external trust boundary: the FastAPI hosting provider and managed PostgreSQL service. Production deployment must use HTTPS, a server-side secret manager, restricted CORS, database TLS, and an application authentication mechanism before clients are switched to it.
+
+### FastAPI package boundaries
+
+```text
+project_pepsi/app.py           HTTP routing, authentication, error mapping
+project_pepsi/contracts.py     versioned external request/response models
+project_pepsi/services.py      use-case orchestration and application policy
+project_pepsi/economics.py     deterministic financial calculations
+project_pepsi/normalization.py deterministic text normalization
+project_pepsi/openai_client.py OpenAI transport and structured-output validation
+project_pepsi/repository.py    persistence operations
+project_pepsi/database.py      SQLAlchemy tables, engine, and sessions
+```
+
+`app.py` must remain transport-oriented. Business calculations and persistence construction do not belong in route handlers. `openai_client.py` may produce validated semantic evidence but may not enforce financial decisions.
+
+### Capture contract
+
+The extension-to-backend contract is explicitly versioned with `contractVersion: 1`. The extension constructs this request from an allowlist of canonical capture fields; it must not serialize its internal scoring, notification, or storage record wholesale. Version 1 includes source identity, listing URL/title/text/price/location, and zero to six transport-normalized images. Marketplace-specific DOM details stop at the extension adapter boundary.

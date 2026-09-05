@@ -119,7 +119,18 @@ async function storeListings(incoming, tabId) {
       records[listing.id].aiRequestedAt = new Date().toISOString();
       try {
         const imageData = await prepareImages((listing.images || []).map((sourceUrl, imageIndex) => ({ imageIndex, sourceUrl, sourceType: 'facebook_search_card' })));
-        const packageForAnalysis = { ...listing, images: imageData };
+        const packageForAnalysis = {
+          contractVersion: 1,
+          source: 'facebook_marketplace',
+          sourceListingId: String(listing.id || ''),
+          url: listing.url,
+          title: listing.title,
+          rawText: listing.rawText || '',
+          price: listing.price ?? null,
+          locationText: listing.locationText || '',
+          distanceMiles: listing.distanceMiles ?? null,
+          images: imageData,
+        };
         const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify(packageForAnalysis) });
         const result = await response.json();
         if (!response.ok) throw new Error(response.status === 401 ? 'Sign into the private Project Pepsi site, then scan again.' : result.error || 'Backend analysis failed.');

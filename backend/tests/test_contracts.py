@@ -29,3 +29,13 @@ def test_bad_image_is_rejected_without_losing_good_images():
     listing, rejected = parse_listing_submission({"url": "https://www.facebook.com/marketplace/item/1", "title": "Watch", "images": [image(0), {**image(1), "width": 4096}]})
     assert [item.imageIndex for item in listing.images] == [0]
     assert rejected == [1]
+
+
+def test_listing_contract_rejects_extension_internal_fields():
+    with pytest.raises(ValidationError):
+        ListingIngest.model_validate({"url": "https://www.facebook.com/marketplace/item/1", "title": "Watch", "score": 80})
+
+
+def test_listing_contract_preserves_source_identity():
+    listing = ListingIngest.model_validate({"contractVersion": 1, "source": "facebook_marketplace", "sourceListingId": "123", "url": "https://www.facebook.com/marketplace/item/123", "title": "Watch"})
+    assert listing.sourceListingId == "123"

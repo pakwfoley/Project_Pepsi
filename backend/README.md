@@ -25,7 +25,7 @@ python -m pytest
 
 ## Cutover
 
-Deploy this service with PostgreSQL, run `alembic upgrade head`, set the frontend and extension backend URL, verify parity, and only then retire the Worker/D1 compatibility endpoints.
+This service is the production backend authority and PostgreSQL is the system of record. The private Sites Worker is an authenticated gateway only. Worker/D1 code and bindings are **LEGACY/BRIDGE** migration artifacts; do not add new production logic or persistence to them.
 
 ## Railway
 

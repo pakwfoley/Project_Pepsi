@@ -9,7 +9,7 @@ pnpm install
 pnpm dev
 ```
 
-The dashboard now persists normalized listings and immutable valuation results through Cloudflare D1. `POST /api/listings` validates and stores a listing plus its valuation; `GET /api/listings` returns the eight most recent analyses. The broader production-oriented Postgres model remains in `db/schema.sql` for the later FastAPI service.
+The production authority is the Python FastAPI service backed by PostgreSQL. The private Sites Worker is an authenticated gateway only: it forwards `/api/*` requests and contains no persistence, valuation, normalization, or OpenAI logic. Cloudflare D1 and its Worker-era schema are retained temporarily as **LEGACY/BRIDGE** migration artifacts and are not an active or equal persistence path.
 
 ## Enforced economics
 
@@ -22,11 +22,8 @@ The offer ceiling preserves a minimum $200 economic alpha. Human approval is man
 
 ## OpenAI connectivity
 
-`POST /api/analyze` performs a minimal server-side Responses API check. It reads
-`OPENAI_API_KEY` only from the Sites runtime, never from browser code or the
-scanner extension. Local development and production builds do not require the
-secret; the endpoint returns `503 OPENAI_API_KEY_MISSING` until it is configured.
+`POST /api/analyze` runs server-side watch and image analysis through the FastAPI service. FastAPI reads `OPENAI_API_KEY` from its server-side runtime only; the private Sites gateway uses a separate sealed service token to authenticate upstream calls. Neither secret enters browser code or the scanner extension. The endpoint returns `503 OPENAI_API_KEY_MISSING` when OpenAI connectivity is not configured.
 
 ## Current ingestion contract
 
-The MVP accepts a listing URL, pasted listing text, confirmed brand/model/reference, asking price, and trade inputs. Reference normalization is deliberately human-confirmed for now; marketplace fetching and model-assisted extraction come next.
+The extension submits an explicit versioned capture contract rather than its internal storage object. The contract contains source identity, listing URL/title/text/price/location, and zero to six transport-normalized images. FastAPI validates this boundary before orchestration. Manual dashboard listings use a separate validated contract.

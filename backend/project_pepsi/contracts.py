@@ -54,6 +54,9 @@ class CapturedImage(ContractModel):
 
 
 class ListingIngest(ContractModel):
+    contractVersion: Literal[1] = 1
+    source: Literal["facebook_marketplace"] = "facebook_marketplace"
+    sourceListingId: str = Field(default="", max_length=255)
     url: HttpUrl
     title: str = Field(min_length=1, max_length=500)
     rawText: str = Field(default="", max_length=12_000)
