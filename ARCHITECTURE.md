@@ -798,7 +798,7 @@ Architecture should evolve deliberately rather than emerging accidentally from g
 
 ---
 
-## 24. Backend Migration Decision
+## 24. Production Backend Decision
 
 Project Pepsi has migrated backend authority from the Sites/Cloudflare Worker implementation to a standalone Python FastAPI service with PostgreSQL.
 
@@ -813,7 +813,7 @@ Sites Frontend ───┘                                      │
 
 The existing private Sites frontend remains. The Worker is an authenticated transport gateway, not a second backend. D1 is a **LEGACY/BRIDGE** artifact and must not receive new production writes. The extension remains capture/transport only. FastAPI owns orchestration, validation, persistence, deterministic economics, and secret isolation. PostgreSQL is the durable source of truth.
 
-At production cutover, the owner-only Sites Worker remains a thin authenticated gateway for the dashboard and extension. It proxies the existing `/api/*` contracts to FastAPI using a sealed, dedicated service token. It contains no valuation, normalization, persistence, or OpenAI logic. FastAPI rejects unauthenticated application endpoints; `/health` remains public for deployment monitoring. This keeps infrastructure credentials out of browser code while preserving the extension's capture/transport-only role.
+In production, the owner-only Sites Worker is a thin authenticated gateway for the dashboard and extension. It proxies the existing `/api/*` contracts to FastAPI using a sealed, dedicated service token. It contains no valuation, normalization, persistence, or OpenAI logic. FastAPI rejects unauthenticated application endpoints; `/health` remains public for deployment monitoring. This keeps infrastructure credentials out of browser code while preserving the extension's capture/transport-only role.
 
 This change adds one external trust boundary: the FastAPI hosting provider and managed PostgreSQL service. Production deployment must use HTTPS, a server-side secret manager, restricted CORS, database TLS, and an application authentication mechanism before clients are switched to it.
 

@@ -1,6 +1,6 @@
 # Project Pepsi FastAPI backend
 
-This is the target backend for Project Pepsi. It preserves the existing `/api/analyze` scanner contract, stores structured records in PostgreSQL, keeps OpenAI calls server-side, and implements financial policy deterministically.
+This is the production backend authority for Project Pepsi. It preserves the versioned `/api/analyze` scanner contract, stores structured records in PostgreSQL, keeps OpenAI calls server-side, and implements financial policy deterministically.
 
 ## Local setup
 
@@ -15,7 +15,7 @@ uvicorn project_pepsi.app:app --reload
 
 Set `DATABASE_URL` and `OPENAI_API_KEY` through the deployment platform's secret manager. Never commit `.env`.
 
-For zero-config local development the backend defaults to a local SQLite file. PostgreSQL is the production target; set `DATABASE_URL` to a `postgresql+psycopg://...` connection string before running migrations in a deployed environment.
+For zero-config local development the backend defaults to a local SQLite file. PostgreSQL is the production system of record; set `DATABASE_URL` to a `postgresql+psycopg://...` connection string before running migrations in a deployed environment. SQLite is development-only and is not an alternate production persistence path.
 
 Run the test suite with:
 
