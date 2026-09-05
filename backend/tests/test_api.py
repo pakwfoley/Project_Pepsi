@@ -1,7 +1,11 @@
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 from project_pepsi.app import app, settings
 from project_pepsi.auth import Principal, authenticate
+from project_pepsi.database import Base, ScannerCandidate, get_session
 
 
 client = TestClient(app)
@@ -48,3 +52,42 @@ def test_api_rejects_missing_scope():
         app.dependency_overrides[authenticate] = override
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "INSUFFICIENT_SCOPE"
+
+
+def test_candidate_queue_returns_review_priority():
+    engine = create_engine("sqlite+pysqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    db_session = Session(engine)
+    candidate = ScannerCandidate(
+        owner_id="auth0|test-user",
+        source="facebook_marketplace",
+        source_listing_id="ranked-1",
+        url="https://www.facebook.com/marketplace/item/ranked-1/",
+        title="Omega Seamaster",
+        description="Watch listing",
+        raw_payload={},
+        image_metadata=[],
+        analysis={
+            "relevant": True,
+            "identification": {"brand": "Omega", "model": "Seamaster", "reference": "", "confidence": 80},
+            "imageClassifications": [],
+            "conditionSignals": [],
+            "riskSignals": [],
+            "completenessAssessment": [],
+            "valuationObservations": [],
+            "missingInformation": [],
+            "questions": [],
+            "recommendation": "investigate",
+            "rationale": "Review this listing.",
+        },
+    )
+    db_session.add(candidate)
+    db_session.commit()
+    app.dependency_overrides[get_session] = lambda: db_session
+    try:
+        response = client.get("/api/analyze")
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+        db_session.close()
+    assert response.status_code == 200
+    assert response.json()["candidates"][0]["reviewPriority"]["valuation_status"] == "valuation_required"

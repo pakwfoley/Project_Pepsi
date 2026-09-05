@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .auth import Principal, require_scope
-from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, parse_listing_submission
+from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, parse_listing_submission
 from .database import Listing, ScannerCandidate, Valuation, get_session
 from .economics import calculate_trade_economics
 from .normalization import normalize_listing
