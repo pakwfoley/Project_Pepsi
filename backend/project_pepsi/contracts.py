@@ -1,6 +1,7 @@
 import base64
 import binascii
 from io import BytesIO
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, ValidationError, model_validator
@@ -92,9 +93,47 @@ class ValuationRange(ContractModel):
         return self
 
 
+class MarketObservation(ContractModel):
+    source: str = Field(min_length=1, max_length=100)
+    url: HttpUrl
+    title: str = Field(min_length=1, max_length=500)
+    observedPrice: float = Field(gt=0)
+    currency: str = Field(min_length=3, max_length=3)
+    priceUsd: float = Field(gt=0)
+    status: Literal["sold", "asking", "unknown"]
+    observedAt: str
+    reference: str = Field(max_length=100)
+    model: str = Field(max_length=200)
+    conditionNotes: str = Field(max_length=1000)
+    relevanceReason: str = Field(max_length=1000)
+    relevant: bool
+
+
+class MarketEvidence(ContractModel):
+    retrievedAt: datetime
+    queries: list[str] = Field(max_length=6)
+    observations: list[MarketObservation] = Field(max_length=12)
+    compsFound: int = Field(ge=0)
+    soldComps: int = Field(ge=0)
+    askingComps: int = Field(ge=0)
+    medianSold: float | None = Field(default=None, gt=0)
+    medianAsk: float | None = Field(default=None, gt=0)
+
+
+class CompEnrichment(ContractModel):
+    observations: list[MarketObservation] = Field(max_length=12)
+    fairMarketValue: ValuationRange
+    quickLiquidationValue: ValuationRange
+    tradeValue: ValuationRange
+    confidence: int = Field(ge=0, le=100)
+    liquidity: Literal["low", "moderate", "high"]
+    basis: list[str] = Field(min_length=1, max_length=8)
+    uncertainties: list[str] = Field(max_length=8)
+
+
 class ValuationResult(ContractModel):
     valuationStatus: Literal["estimated", "insufficient_evidence"]
-    valuationMethod: Literal["ai_provisional_v1"]
+    valuationMethod: Literal["ai_provisional_v1", "ai_comp_enriched_v1"]
     currency: Literal["USD"]
     fairMarketValue: ValuationRange | None
     quickLiquidationValue: ValuationRange | None
@@ -103,12 +142,15 @@ class ValuationResult(ContractModel):
     liquidity: Literal["low", "moderate", "high", "unknown"]
     basis: list[str] = Field(max_length=8)
     uncertainties: list[str] = Field(max_length=8)
+    marketEvidence: MarketEvidence | None
 
     @model_validator(mode="before")
     @classmethod
     def normalize_legacy_status(cls, value):
-        if isinstance(value, dict) and value.get("valuationStatus") == "available":
-            value = {**value, "valuationStatus": "estimated"}
+        if isinstance(value, dict):
+            value = {"marketEvidence": None, **value}
+            if value.get("valuationStatus") == "available":
+                value = {**value, "valuationStatus": "estimated"}
         return value
 
     @model_validator(mode="after")
@@ -118,6 +160,8 @@ class ValuationResult(ContractModel):
             raise ValueError("estimated valuation requires all value ranges")
         if self.valuationStatus == "estimated" and (not self.basis or self.liquidity == "unknown"):
             raise ValueError("estimated valuation requires basis and known liquidity")
+        if self.valuationMethod == "ai_comp_enriched_v1" and (self.marketEvidence is None or self.marketEvidence.compsFound == 0):
+            raise ValueError("comp-enriched valuation requires market evidence")
         if self.valuationStatus == "insufficient_evidence" and any(value is not None for value in ranges):
             raise ValueError("insufficient valuation must not fabricate value ranges")
         if self.valuationStatus == "insufficient_evidence" and not self.uncertainties:
@@ -126,7 +170,7 @@ class ValuationResult(ContractModel):
 
 
 def insufficient_valuation() -> ValuationResult:
-    return ValuationResult(valuationStatus="insufficient_evidence", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue=None, quickLiquidationValue=None, tradeValue=None, confidence=0, liquidity="unknown", basis=[], uncertainties=["This record predates provisional valuation."])
+    return ValuationResult(valuationStatus="insufficient_evidence", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue=None, quickLiquidationValue=None, tradeValue=None, confidence=0, liquidity="unknown", basis=[], uncertainties=["This record predates provisional valuation."], marketEvidence=None)
 
 
 class WatchAnalysis(ContractModel):

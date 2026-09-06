@@ -15,7 +15,7 @@ const DEFAULTS = {
   backendUrl: 'https://projectpepsi-production.up.railway.app',
   listings: {},
 };
-const ANALYSIS_SCHEMA_VERSION = 4;
+const ANALYSIS_SCHEMA_VERSION = 5;
 const ANALYSIS_UPGRADE_RETRY_MS = 5 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(async () => {

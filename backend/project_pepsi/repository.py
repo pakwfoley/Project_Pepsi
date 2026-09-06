@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .contracts import ListingIngest, ManualListingInput, WatchAnalysis
-from .database import Listing, ScannerAnalysisRun, ScannerCandidate, Valuation
+from .database import Listing, MarketObservationRecord, ScannerAnalysisRun, ScannerCandidate, Valuation
 
 
 def source_listing_id(url: str) -> str:
@@ -26,7 +26,13 @@ def save_analysis(session: Session, owner_id: str, listing: ListingIngest, analy
     candidate.analysis = analysis.model_dump(mode="json")
     candidate.analysis_metadata = analysis_metadata or {}
     session.flush()
-    session.add(ScannerAnalysisRun(candidate_id=candidate.id, owner_id=owner_id, analysis=analysis.model_dump(mode="json"), valuation=analysis.valuation.model_dump(mode="json"), valuation_method=analysis.valuation.valuationMethod, analysis_metadata=analysis_metadata or {}))
+    run = ScannerAnalysisRun(candidate_id=candidate.id, owner_id=owner_id, analysis=analysis.model_dump(mode="json"), valuation=analysis.valuation.model_dump(mode="json"), valuation_method=analysis.valuation.valuationMethod, analysis_metadata=analysis_metadata or {})
+    session.add(run)
+    session.flush()
+    evidence = analysis.valuation.marketEvidence
+    if evidence:
+        for observation in evidence.observations:
+            session.add(MarketObservationRecord(analysis_run_id=run.id, candidate_id=candidate.id, owner_id=owner_id, source=observation.source, url=str(observation.url), title=observation.title, observed_price=observation.observedPrice, currency=observation.currency, price_usd=observation.priceUsd, sale_status=observation.status, observation=observation.model_dump(mode="json"), retrieved_at=evidence.retrievedAt))
     session.commit(); session.refresh(candidate)
     return candidate
 

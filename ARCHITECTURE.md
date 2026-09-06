@@ -368,6 +368,12 @@ These values are provisional reasoning, not authoritative market facts. Seller a
 
 The valuation capability is intentionally replaceable. Later versions may add comparable retrieval or normalized market evidence behind the same `ValuationResult` concepts. Market crawlers, dynamic asset trajectory, trade-graph optimization, and purchase authorization remain outside P3.
 
+### P3.1 comp-enriched valuation
+
+P3.1 adds a second, optional server-side valuation pass after watch identification. FastAPI constructs reference-first search queries and invokes the OpenAI Responses API web-search tool. OpenAI retrieves and semantically assesses a bounded set of current market observations; backend code removes the subject listing, irrelevant results, and duplicates, then computes sold/asking counts and medians. Asking observations remain distinct from completed sales.
+
+Successful enrichment uses `ai_comp_enriched_v1` while preserving the existing `ValuationResult` economic fields. Each observation retains its source URL, title, price, currency, normalized USD price, sale status, relevance explanation, and retrieval timestamp. Observations are persisted against the immutable scanner analysis run. If retrieval fails or produces no usable evidence, the original `ai_provisional_v1` result is persisted unchanged. No new secret, extension responsibility, marketplace scraper, or transaction authority is introduced.
+
 ---
 
 ## 11. Trade Economics
@@ -628,6 +634,7 @@ Currently implemented or selected:
 ✓ Safe missing-secret behavior
 ✓ Responses API integration architecture
 ✓ Versioned provisional valuation contract (`ai_provisional_v1`)
+✓ Optional provenance-preserving comp enrichment (`ai_comp_enriched_v1`)
 ✓ Immutable scanner analysis and valuation history in PostgreSQL
 ```
 

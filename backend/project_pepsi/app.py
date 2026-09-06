@@ -13,7 +13,7 @@ from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, 
 from .database import Listing, ScannerCandidate, Valuation, get_session
 from .economics import calculate_trade_economics
 from .normalization import normalize_listing
-from .openai_client import OpenAIConfigurationError, OpenAIResponseError, analyze_listing
+from .openai_client import OpenAIConfigurationError, OpenAIResponseError, analyze_listing, enrich_with_market_comps
 from .opportunity import calculate_review_priority
 from .repository import save_analysis
 from .services import create_manual_listing
@@ -42,7 +42,9 @@ async def analyze(payload: dict, principal: Principal = Depends(require_scope("a
     try:
         listing, rejected_indexes = parse_listing_submission(payload)
         analysis, metadata = await analyze_listing(listing, settings)
-        persisted_metadata = {"model": metadata["model"], "responseId": metadata["response_id"], "latencyMs": metadata["latency_ms"], "usage": metadata["usage"], "usableImageCount": len(listing.images), "rejectedImageIndexes": rejected_indexes}
+        analysis, comp_metadata = await enrich_with_market_comps(listing, analysis, settings)
+        metadata.update(comp_metadata)
+        persisted_metadata = {"model": metadata["model"], "responseId": metadata["response_id"], "latencyMs": metadata["latency_ms"], "usage": metadata["usage"], "usableImageCount": len(listing.images), "rejectedImageIndexes": rejected_indexes, "compStatus": metadata.get("comp_status"), "compResponseId": metadata.get("comp_response_id"), "compLatencyMs": metadata.get("comp_latency_ms"), "compQueries": metadata.get("comp_queries", []), "compUsage": metadata.get("comp_usage", {})}
         candidate = save_analysis(session, principal.user_id, listing, analysis, persisted_metadata)
         logger.info("analysis_complete candidate_id=%s model=%s latency_ms=%s usable_images=%s rejected_images=%s input_tokens=%s output_tokens=%s", candidate.id, metadata["model"], metadata["latency_ms"], len(listing.images), len(rejected_indexes), metadata["usage"].get("input_tokens"), metadata["usage"].get("output_tokens"))
         return {"ok": True, "candidateId": candidate.id, "analysis": analysis, "model": metadata["model"], "responseId": metadata["response_id"], "telemetry": persisted_metadata, "ingestion": {"contractVersion": 1, "submittedImages": candidate.image_metadata, "rejectedImageIndexes": rejected_indexes}}

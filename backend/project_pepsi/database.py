@@ -49,6 +49,25 @@ class ScannerAnalysisRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
+class MarketObservationRecord(Base):
+    __tablename__ = "market_observations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    analysis_run_id: Mapped[str] = mapped_column(String(36), index=True)
+    candidate_id: Mapped[str] = mapped_column(String(36), index=True)
+    owner_id: Mapped[str] = mapped_column(String(255), index=True)
+    source: Mapped[str] = mapped_column(String(100))
+    url: Mapped[str] = mapped_column(Text)
+    title: Mapped[str] = mapped_column(String(500))
+    observed_price: Mapped[float] = mapped_column(Float)
+    currency: Mapped[str] = mapped_column(String(3))
+    price_usd: Mapped[float] = mapped_column(Float)
+    sale_status: Mapped[str] = mapped_column(String(20))
+    observation: Mapped[dict] = mapped_column(JSON)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
+
+
 class Listing(Base):
     __tablename__ = "listings"
 
