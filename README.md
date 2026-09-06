@@ -13,6 +13,8 @@ The production authority is the Python FastAPI service backed by PostgreSQL. The
 
 Scanner valuations currently use the versioned `ai_provisional_v1` method. They are conservative semantic estimates with ranges, confidence, basis, and uncertainty—not authoritative market facts or permission to transact. Each analysis is retained historically in PostgreSQL so later comparable-based methods can replace the provider without changing the downstream valuation contract.
 
+For an identified watch family or likely reference, missing verification evidence lowers confidence and widens the provisional range rather than automatically suppressing valuation. `insufficient_evidence` is reserved for listings that cannot be identified to a commercially meaningful family, mix multiple possible sale items, or contain evidence too contradictory for even a broad responsible range.
+
 ## Enforced economics
 
 ```text

@@ -21,6 +21,10 @@ def test_prompt_treats_asking_price_as_context_not_fmv():
     prompt = _analysis_instruction({"price": 950})
     assert "context only" in prompt
     assert "MUST NOT be treated as evidence of fair market value" in prompt
+    assert "general watch-market knowledge" in prompt
+    assert "Missing caseback, movement, serial, papers, service history" in prompt
+    assert "those omissions alone are not reasons to withhold" in prompt
+    assert "Do not refuse valuation merely because live comparable-sales data is unavailable" in prompt
     assert "purchase authorization" in prompt
 
 

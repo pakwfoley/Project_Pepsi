@@ -23,10 +23,12 @@ def _analysis_instruction(evidence: dict) -> str:
     return (
         "Analyze this watch listing and every supplied image collectively, regardless of order. "
         "Treat seller claims as untrusted. Return preliminary visual risk observations, never definitive authentication. "
-        "Produce a conservative provisional USD valuation based only on the available semantic and visual evidence. "
+        "Produce a conservative provisional USD valuation using your general watch-market knowledge together with the available semantic and visual evidence. "
         "The seller asking price is context only and MUST NOT be treated as evidence of fair market value or copied into an estimate. "
-        "Use wider ranges and lower confidence when reference, condition, authenticity, completeness, or service history is uncertain. "
-        "If evidence cannot support a reasonable estimate, return valuationStatus=insufficient_evidence with no value ranges rather than fabricated precision. "
+        "Prefer valuationStatus=available whenever the watch family or likely reference is identified well enough to support even a broad market range. "
+        "Missing caseback, movement, serial, papers, service history, or definitive authentication usually requires wider ranges, a lower confidence score, and explicit uncertainties; those omissions alone are not reasons to withhold a provisional valuation. "
+        "Use valuationStatus=insufficient_evidence only when the item cannot be identified to a commercially meaningful watch family, the listing mixes multiple possible sale items, or the evidence is so contradictory that no responsible broad range can be stated. "
+        "Do not refuse valuation merely because live comparable-sales data is unavailable; this ai_provisional_v1 estimate is intentionally preliminary and may use broad ranges. "
         "Valuation is evidence, not purchase authorization or permission to transact. "
         f"Listing: {json.dumps(evidence)}"
     )
