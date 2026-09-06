@@ -28,6 +28,7 @@ Keep that Marketplace tab open. The extension scans it at the configured interva
 - Reads only the already-rendered Marketplace search cards during automatic scans. It never opens candidate tabs in the background.
 - Sends listing text, price, location, URL, and up to six bounded photo files to the private Project Pepsi backend. Photos preserve aspect ratio, use a maximum 2048 px long edge, and are encoded as WebP near 85–90 quality with stable capture metadata. Facebook cookies and credentials are never included.
 - Stores observations and returned analysis in Chrome local storage; maximum 500 listings.
+- Version-tags cached analysis so older records are resubmitted once when the backend analysis contract advances.
 - Never sends messages, makes offers, clicks checkout, or accesses Facebook passwords/cookies.
 - Uses conservative intervals of one minute or longer.
 - Keeps identification, image review, risk assessment, and question generation on the server.

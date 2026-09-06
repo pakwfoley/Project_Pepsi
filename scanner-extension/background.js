@@ -15,6 +15,8 @@ const DEFAULTS = {
   backendUrl: 'https://projectpepsi-production.up.railway.app',
   listings: {},
 };
+const ANALYSIS_SCHEMA_VERSION = 3;
+const ANALYSIS_UPGRADE_RETRY_MS = 5 * 60 * 1000;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const saved = await chrome.storage.local.get(DEFAULTS);
@@ -170,9 +172,12 @@ async function storeListings(incoming, tabId) {
     if (!prior) newCount += 1;
     const needsInitialAnalysis = !prior?.aiAnalysis && !prior?.aiRequestedAt;
     const needsImageUpgrade = Boolean(prior?.aiAnalysis) && Number(prior?.imagesReviewed || 0) < 2 && !prior?.multiImageAttemptedAt;
-    if ((needsInitialAnalysis || needsImageUpgrade) && scored.score >= 35 && aiCount < 3) {
+    const lastUpgradeAttempt = Date.parse(prior?.analysisUpgradeAttemptedAt || '') || 0;
+    const needsAnalysisUpgrade = Boolean(prior?.aiAnalysis) && prior?.analysisSchemaVersion !== ANALYSIS_SCHEMA_VERSION && Date.now() - lastUpgradeAttempt >= ANALYSIS_UPGRADE_RETRY_MS;
+    if ((needsInitialAnalysis || needsImageUpgrade || needsAnalysisUpgrade) && scored.score >= 35 && aiCount < 3) {
       records[listing.id].aiRequestedAt = new Date().toISOString();
       if (needsImageUpgrade) records[listing.id].multiImageAttemptedAt = new Date().toISOString();
+      if (needsAnalysisUpgrade) records[listing.id].analysisUpgradeAttemptedAt = new Date().toISOString();
       try {
         const detail = await scrapeDetailListing(listing, collectorTabId);
         collectorTabId = detail.collectorTabId;
@@ -193,7 +198,7 @@ async function storeListings(incoming, tabId) {
         const response = await fetch(`${settings.backendUrl}/api/analyze`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${await accessToken()}` }, body: JSON.stringify(packageForAnalysis) });
         const result = await response.json();
         if (!response.ok) throw new Error(response.status === 401 ? 'Sign into the private Project Pepsi site, then scan again.' : result.error || 'Backend analysis failed.');
-        records[listing.id].rawText = packageForAnalysis.rawText; records[listing.id].aiAnalysis = result.analysis; records[listing.id].aiModel = result.model; records[listing.id].imagesReviewed = result.ingestion?.submittedImages?.length || 0; aiCount += 1;
+        records[listing.id].rawText = packageForAnalysis.rawText; records[listing.id].aiAnalysis = result.analysis; records[listing.id].aiModel = result.model; records[listing.id].imagesReviewed = result.ingestion?.submittedImages?.length || 0; records[listing.id].analysisSchemaVersion = ANALYSIS_SCHEMA_VERSION; delete records[listing.id].aiError; aiCount += 1;
       } catch (error) { records[listing.id].aiError = error instanceof Error ? error.message : 'Backend analysis failed.'; }
     }
     if (!prior?.notifiedAt && scored.eligible && scored.score >= Number(settings.minimumScore)) {
