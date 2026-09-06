@@ -362,7 +362,7 @@ Persisted immutable analysis run
 Future deterministic economics
 ```
 
-An available result contains fair/private-market, quick-liquidation, and trade-value estimates with ranges, confidence, liquidity, basis, and uncertainties. When the evidence cannot support a reasonable estimate, the result is `insufficient_evidence` and contains no monetary ranges; unknown value must never silently become zero.
+An `estimated` result contains fair/private-market, quick-liquidation, and trade-value estimates with ranges, confidence, liquidity, basis, and uncertainties. Valuation falls back from exact reference/configuration to reference family, model, or the narrowest economically meaningful category. Normal uncertainty widens ranges, lowers confidence, and makes QLV more conservative; it does not suppress valuation. `insufficient_evidence` is reserved for evidence that cannot identify even a broad meaningful category, mixes possible sale items, or is severely contradictory, and contains no monetary ranges. Unknown value must never silently become zero. Persisted legacy `available` results are normalized to `estimated` when read.
 
 These values are provisional reasoning, not authoritative market facts. Seller asking price is context only and is not evidence of fair market value. QLV remains the conservative portfolio accounting primitive. Backend code validates and persists the result and retains exclusive ownership of money arithmetic, minimum-alpha policy, transaction authorization, and human-approval boundaries.
 

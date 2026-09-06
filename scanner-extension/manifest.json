@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuVZ+7Vk9wlgKn9+c2v0aOiwrVU76AZAR6zI2POs4c4Q9BKKg4khYckwKVbIWdNwdKCVKpR13BnYcts0s4kGWLVbh03FJ0oGqHZBXvJ2wOTOXa7tI7i+VgOL1VGlbb3weNkoJW2McAunnBLYV/BQPOiM1ZJWlQ7CR09MAvZ4+avCS8ZQ2ra3mzySGqAu13E5Hk7ZOcrk5prTpoewgIU/YoPuQZpu3kn5NLvpybCy4lW5sJF7G6BQaNs01Bl1k0Ewx1nFPAcNCnGmbbu9WlXx2cg1Z8FAOsKs1cvviQhEErfA71cgEpcEsihngQUihpnQIzaOLmGRpCRJVWIhywiZGeQIDAQAB",
   "name": "Project Pepsi Marketplace Scanner",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Read-only, supervised discovery for Facebook Marketplace watch listings.",
   "permissions": ["alarms", "identity", "notifications", "scripting", "storage", "tabs"],
   "host_permissions": ["https://www.facebook.com/marketplace/*", "https://*.fbcdn.net/*", "https://projectpepsi-production.up.railway.app/*", "https://dev-uxnklrcyku2o3xyz.us.auth0.com/*"],

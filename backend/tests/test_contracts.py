@@ -42,7 +42,7 @@ def test_listing_contract_preserves_source_identity():
 
 
 def test_structured_provisional_valuation_parses():
-    valuation = ValuationResult(valuationStatus="available", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue={"estimate": 950, "low": 750, "high": 1200}, quickLiquidationValue={"estimate": 775, "low": 650, "high": 900}, tradeValue={"estimate": 900, "low": 750, "high": 1050}, confidence=72, liquidity="moderate", basis=["Likely reference identified"], uncertainties=["Service history unverified"])
+    valuation = ValuationResult(valuationStatus="estimated", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue={"estimate": 950, "low": 750, "high": 1200}, quickLiquidationValue={"estimate": 775, "low": 650, "high": 900}, tradeValue={"estimate": 900, "low": 750, "high": 1050}, confidence=72, liquidity="moderate", basis=["Likely reference identified"], uncertainties=["Service history unverified"])
     assert valuation.valuationMethod == "ai_provisional_v1"
     assert valuation.quickLiquidationValue.estimate == 775
 
@@ -59,6 +59,22 @@ def test_unknown_valuation_is_not_zero_value():
     assert valuation.fairMarketValue is None
     assert valuation.quickLiquidationValue is None
     assert valuation.tradeValue is None
+
+
+def test_estimated_valuation_requires_complete_economics_basis_and_liquidity():
+    common = {"valuationStatus": "estimated", "valuationMethod": "ai_provisional_v1", "currency": "USD", "fairMarketValue": {"estimate": 950, "low": 750, "high": 1200}, "quickLiquidationValue": {"estimate": 775, "low": 650, "high": 900}, "tradeValue": {"estimate": 900, "low": 750, "high": 1050}, "confidence": 45, "liquidity": "moderate", "basis": ["Model-family fallback"], "uncertainties": ["Exact reference unknown"]}
+    assert ValuationResult.model_validate(common).valuationStatus == "estimated"
+    with pytest.raises(ValidationError):
+        ValuationResult.model_validate({**common, "quickLiquidationValue": None})
+    with pytest.raises(ValidationError):
+        ValuationResult.model_validate({**common, "basis": []})
+    with pytest.raises(ValidationError):
+        ValuationResult.model_validate({**common, "liquidity": "unknown"})
+
+
+def test_legacy_available_status_reads_as_estimated():
+    valuation = ValuationResult(valuationStatus="available", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue={"estimate": 950, "low": 750, "high": 1200}, quickLiquidationValue={"estimate": 775, "low": 650, "high": 900}, tradeValue={"estimate": 900, "low": 750, "high": 1050}, confidence=72, liquidity="moderate", basis=["Likely reference identified"], uncertainties=[])
+    assert valuation.valuationStatus == "estimated"
 
 
 def test_model_valuation_cannot_authorize_transaction():

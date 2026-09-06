@@ -93,7 +93,7 @@ class ValuationRange(ContractModel):
 
 
 class ValuationResult(ContractModel):
-    valuationStatus: Literal["available", "insufficient_evidence"]
+    valuationStatus: Literal["estimated", "insufficient_evidence"]
     valuationMethod: Literal["ai_provisional_v1"]
     currency: Literal["USD"]
     fairMarketValue: ValuationRange | None
@@ -104,13 +104,24 @@ class ValuationResult(ContractModel):
     basis: list[str] = Field(max_length=8)
     uncertainties: list[str] = Field(max_length=8)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_status(cls, value):
+        if isinstance(value, dict) and value.get("valuationStatus") == "available":
+            value = {**value, "valuationStatus": "estimated"}
+        return value
+
     @model_validator(mode="after")
     def validate_availability(self) -> "ValuationResult":
         ranges = (self.fairMarketValue, self.quickLiquidationValue, self.tradeValue)
-        if self.valuationStatus == "available" and any(value is None for value in ranges):
-            raise ValueError("available valuation requires all value ranges")
+        if self.valuationStatus == "estimated" and any(value is None for value in ranges):
+            raise ValueError("estimated valuation requires all value ranges")
+        if self.valuationStatus == "estimated" and (not self.basis or self.liquidity == "unknown"):
+            raise ValueError("estimated valuation requires basis and known liquidity")
         if self.valuationStatus == "insufficient_evidence" and any(value is not None for value in ranges):
             raise ValueError("insufficient valuation must not fabricate value ranges")
+        if self.valuationStatus == "insufficient_evidence" and not self.uncertainties:
+            raise ValueError("insufficient valuation requires a specific reason")
         return self
 
 

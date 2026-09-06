@@ -60,7 +60,8 @@ def candidates(principal: Principal = Depends(require_scope("read:listings")), s
         stored_analysis = row.analysis if "valuation" in row.analysis else {**row.analysis, "valuation": insufficient_valuation().model_dump(mode="json")}
         analysis = WatchAnalysis.model_validate(stored_analysis)
         priority = calculate_review_priority(analysis, len(row.image_metadata or []), row.distance_miles)
-        priority_result = priority.as_dict(); priority_result["valuation_status"] = analysis.valuation.valuationStatus
+        priority_result = priority.as_dict()
+        priority_result["valuation_status"] = "available" if analysis.valuation.valuationStatus == "estimated" else analysis.valuation.valuationStatus
         candidates_with_priority.append({"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": analysis.model_dump(mode="json"), "analysisMetadata": row.analysis_metadata, "reviewPriority": priority_result, "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at})
     candidates_with_priority.sort(key=lambda item: item["reviewPriority"]["score"], reverse=True)
     return {"candidates": candidates_with_priority}
