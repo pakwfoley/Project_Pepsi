@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .auth import Principal, require_scope
-from .contracts import ComparableValuationInput, ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, parse_listing_submission
+from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, parse_listing_submission
 from .database import Listing, ScannerCandidate, Valuation, get_session
-from .economics import calculate_comparable_valuation, calculate_trade_economics
+from .economics import calculate_trade_economics
 from .normalization import normalize_listing
 from .openai_client import OpenAIConfigurationError, OpenAIResponseError, analyze_listing
 from .opportunity import calculate_review_priority
@@ -42,8 +42,10 @@ async def analyze(payload: dict, principal: Principal = Depends(require_scope("a
     try:
         listing, rejected_indexes = parse_listing_submission(payload)
         analysis, metadata = await analyze_listing(listing, settings)
-        candidate = save_analysis(session, principal.user_id, listing, analysis)
-        return {"ok": True, "candidateId": candidate.id, "analysis": analysis, "model": metadata["model"], "responseId": metadata["response_id"], "ingestion": {"contractVersion": 1, "submittedImages": candidate.image_metadata, "rejectedImageIndexes": rejected_indexes}}
+        persisted_metadata = {"model": metadata["model"], "responseId": metadata["response_id"], "latencyMs": metadata["latency_ms"], "usage": metadata["usage"], "usableImageCount": len(listing.images), "rejectedImageIndexes": rejected_indexes}
+        candidate = save_analysis(session, principal.user_id, listing, analysis, persisted_metadata)
+        logger.info("analysis_complete candidate_id=%s model=%s latency_ms=%s usable_images=%s rejected_images=%s input_tokens=%s output_tokens=%s", candidate.id, metadata["model"], metadata["latency_ms"], len(listing.images), len(rejected_indexes), metadata["usage"].get("input_tokens"), metadata["usage"].get("output_tokens"))
+        return {"ok": True, "candidateId": candidate.id, "analysis": analysis, "model": metadata["model"], "responseId": metadata["response_id"], "telemetry": persisted_metadata, "ingestion": {"contractVersion": 1, "submittedImages": candidate.image_metadata, "rejectedImageIndexes": rejected_indexes}}
     except OpenAIConfigurationError as exc:
         raise HTTPException(status_code=503, detail={"code": str(exc), "error": "OpenAI connectivity is not configured."}) from exc
     except OpenAIResponseError as exc:
@@ -57,7 +59,7 @@ def candidates(principal: Principal = Depends(require_scope("read:listings")), s
     for row in rows:
         analysis = WatchAnalysis.model_validate(row.analysis)
         priority = calculate_review_priority(analysis, len(row.image_metadata or []), row.distance_miles)
-        candidates_with_priority.append({"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": row.analysis, "reviewPriority": priority.as_dict(), "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at})
+        candidates_with_priority.append({"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": row.analysis, "analysisMetadata": row.analysis_metadata, "reviewPriority": priority.as_dict(), "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at})
     candidates_with_priority.sort(key=lambda item: item["reviewPriority"]["score"], reverse=True)
     return {"candidates": candidates_with_priority}
 
@@ -65,11 +67,6 @@ def candidates(principal: Principal = Depends(require_scope("read:listings")), s
 @app.post("/api/economics")
 def economics(payload: TradeEconomicsInput, _principal: Principal = Depends(require_scope("analyze:listings"))) -> dict:
     return calculate_trade_economics(payload).__dict__
-
-
-@app.post("/api/valuation")
-def valuation(payload: ComparableValuationInput, _principal: Principal = Depends(require_scope("analyze:listings"))) -> dict:
-    return calculate_comparable_valuation(payload).__dict__
 
 
 @app.post("/api/normalize")

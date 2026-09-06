@@ -1,4 +1,5 @@
 import json
+import time
 
 import httpx
 
@@ -29,8 +30,10 @@ async def analyze_listing(listing: ListingIngest, settings: Settings) -> tuple[W
             {"type": "input_image", "image_url": image.dataUrl, "detail": "high"},
         ])
     body = {"model": settings.openai_model, "input": [{"role": "user", "content": content}], "store": False, "max_output_tokens": 900, "text": {"format": {"type": "json_schema", "name": "watch_listing_analysis", "strict": True, "schema": WatchAnalysis.model_json_schema()}}}
+    started = time.perf_counter()
     async with httpx.AsyncClient(timeout=60) as client:
         response = await client.post("https://api.openai.com/v1/responses", headers={"Authorization": f"Bearer {settings.openai_api_key}"}, json=body)
+    latency_ms = round((time.perf_counter() - started) * 1000)
     if response.status_code >= 400:
         raise OpenAIResponseError(f"OPENAI_CONNECTION_FAILED:{response.status_code}")
     try:
@@ -38,4 +41,4 @@ async def analyze_listing(listing: ListingIngest, settings: Settings) -> tuple[W
     except Exception as exc:
         raise OpenAIResponseError("AI_RESPONSE_INVALID") from exc
     usage = response.json().get("usage") or {}
-    return analysis, {"response_id": response.json().get("id"), "model": response.json().get("model", settings.openai_model), "usage": usage}
+    return analysis, {"response_id": response.json().get("id"), "model": response.json().get("model", settings.openai_model), "usage": usage, "latency_ms": latency_ms}

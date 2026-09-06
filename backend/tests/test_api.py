@@ -67,6 +67,7 @@ def test_candidate_queue_returns_review_priority():
         description="Watch listing",
         raw_payload={},
         image_metadata=[],
+        analysis_metadata={"model": "test-model", "latencyMs": 1250, "usage": {"total_tokens": 321}, "usableImageCount": 0, "rejectedImageIndexes": [1]},
         analysis={
             "relevant": True,
             "identification": {"brand": "Omega", "model": "Seamaster", "reference": "", "confidence": 80},
@@ -91,3 +92,5 @@ def test_candidate_queue_returns_review_priority():
         db_session.close()
     assert response.status_code == 200
     assert response.json()["candidates"][0]["reviewPriority"]["valuation_status"] == "valuation_required"
+    assert response.json()["candidates"][0]["analysisMetadata"]["latencyMs"] == 1250
+    assert response.json()["candidates"][0]["analysisMetadata"]["usage"]["total_tokens"] == 321

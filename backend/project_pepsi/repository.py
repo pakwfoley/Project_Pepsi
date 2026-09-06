@@ -12,7 +12,7 @@ def source_listing_id(url: str) -> str:
     return match.group(1) if match else url
 
 
-def save_analysis(session: Session, owner_id: str, listing: ListingIngest, analysis: WatchAnalysis) -> ScannerCandidate:
+def save_analysis(session: Session, owner_id: str, listing: ListingIngest, analysis: WatchAnalysis, analysis_metadata: dict | None = None) -> ScannerCandidate:
     key = listing.sourceListingId or source_listing_id(str(listing.url))
     candidate = session.scalar(select(ScannerCandidate).where(ScannerCandidate.owner_id == owner_id, ScannerCandidate.source == listing.source, ScannerCandidate.source_listing_id == key))
     if candidate is None:
@@ -24,6 +24,7 @@ def save_analysis(session: Session, owner_id: str, listing: ListingIngest, analy
     candidate.raw_payload = listing.model_dump(mode="json", exclude={"images"})
     candidate.image_metadata = [image.model_dump(exclude={"dataUrl"}) for image in listing.images]
     candidate.analysis = analysis.model_dump(mode="json")
+    candidate.analysis_metadata = analysis_metadata or {}
     session.commit(); session.refresh(candidate)
     return candidate
 

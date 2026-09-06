@@ -613,6 +613,8 @@ The image transport contract is versioned and validated by FastAPI. Further cont
 
 Scanner analyses receive a deterministic review-priority score after semantic analysis. This score ranks which records deserve human attention using relevance, identification confidence, photo coverage, locality, risk signals, and missing evidence. It is not a valuation or expected-profit score. Until comparable data produces a defensible QLV, scanner candidates must remain explicitly marked `valuation_required` and must not receive a purchase or trade recommendation.
 
+For P2 verification, each persisted scanner analysis also retains bounded operational metadata: model identifier, OpenAI response identifier, request latency, token usage, usable-image count, and rejected image indexes. Raw image payloads and credentials are not included. This metadata exists to prove repeated end-to-end behavior and inspect partial-image handling; it is not business evidence or valuation input.
+
 ---
 
 ## 19. Near-Term Target

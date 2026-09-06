@@ -30,6 +30,7 @@ class ScannerCandidate(Base):
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict)
     image_metadata: Mapped[list] = mapped_column(JSON, default=list)
     analysis: Mapped[dict] = mapped_column(JSON, default=dict)
+    analysis_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
     status: Mapped[str] = mapped_column(String(30), default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
