@@ -348,6 +348,26 @@ Quick liquidation value:  $2,900
 
 Project Pepsi should reason economically around approximately $2,900 rather than $3,800.
 
+### P3 provisional valuation boundary
+
+The initial P3 scanner valuation is a versioned semantic estimate produced from the normalized listing, identification, images, visible condition/completeness, and uncertainty signals. It is represented by a validated `ValuationResult`, not by an OpenAI-specific downstream contract.
+
+```text
+Scanner analysis
+      ↓
+ValuationResult (ai_provisional_v1)
+      ↓
+Persisted immutable analysis run
+      ↓
+Future deterministic economics
+```
+
+An available result contains fair/private-market, quick-liquidation, and trade-value estimates with ranges, confidence, liquidity, basis, and uncertainties. When the evidence cannot support a reasonable estimate, the result is `insufficient_evidence` and contains no monetary ranges; unknown value must never silently become zero.
+
+These values are provisional reasoning, not authoritative market facts. Seller asking price is context only and is not evidence of fair market value. QLV remains the conservative portfolio accounting primitive. Backend code validates and persists the result and retains exclusive ownership of money arithmetic, minimum-alpha policy, transaction authorization, and human-approval boundaries.
+
+The valuation capability is intentionally replaceable. Later versions may add comparable retrieval or normalized market evidence behind the same `ValuationResult` concepts. Market crawlers, dynamic asset trajectory, trade-graph optimization, and purchase authorization remain outside P3.
+
 ---
 
 ## 11. Trade Economics
@@ -607,6 +627,8 @@ Currently implemented or selected:
 ✓ OPENAI_API_KEY server-only design
 ✓ Safe missing-secret behavior
 ✓ Responses API integration architecture
+✓ Versioned provisional valuation contract (`ai_provisional_v1`)
+✓ Immutable scanner analysis and valuation history in PostgreSQL
 ```
 
 The image transport contract is versioned and validated by FastAPI. Further contract changes should remain backward-aware and must not expose extension-internal state.

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .auth import Principal, require_scope
-from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, parse_listing_submission
+from .contracts import ManualListingInput, NormalizeInput, TradeEconomicsInput, WatchAnalysis, insufficient_valuation, parse_listing_submission
 from .database import Listing, ScannerCandidate, Valuation, get_session
 from .economics import calculate_trade_economics
 from .normalization import normalize_listing
@@ -57,9 +57,11 @@ def candidates(principal: Principal = Depends(require_scope("read:listings")), s
     rows = session.scalars(select(ScannerCandidate).where(ScannerCandidate.owner_id == principal.user_id).order_by(ScannerCandidate.updated_at.desc()).limit(30)).all()
     candidates_with_priority = []
     for row in rows:
-        analysis = WatchAnalysis.model_validate(row.analysis)
+        stored_analysis = row.analysis if "valuation" in row.analysis else {**row.analysis, "valuation": insufficient_valuation().model_dump(mode="json")}
+        analysis = WatchAnalysis.model_validate(stored_analysis)
         priority = calculate_review_priority(analysis, len(row.image_metadata or []), row.distance_miles)
-        candidates_with_priority.append({"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": row.analysis, "analysisMetadata": row.analysis_metadata, "reviewPriority": priority.as_dict(), "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at})
+        priority_result = priority.as_dict(); priority_result["valuation_status"] = analysis.valuation.valuationStatus
+        candidates_with_priority.append({"id": row.id, "sourceKey": row.source_listing_id, "url": row.url, "title": row.title, "rawText": row.description, "askCents": row.asking_price_cents, "locationText": row.location_text, "distanceMiles": row.distance_miles, "imageMetadata": row.image_metadata, "analysis": analysis.model_dump(mode="json"), "analysisMetadata": row.analysis_metadata, "reviewPriority": priority_result, "status": row.status, "createdAt": row.created_at, "updatedAt": row.updated_at})
     candidates_with_priority.sort(key=lambda item: item["reviewPriority"]["score"], reverse=True)
     return {"candidates": candidates_with_priority}
 

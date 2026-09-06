@@ -1,6 +1,6 @@
 # Project Pepsi
 
-An initial vertical slice for conservative watch valuation and supervised negotiation.
+A human-in-the-loop watch intelligence system with browser-assisted capture, structured visual analysis, and provisional valuation.
 
 ## Run locally
 
@@ -10,6 +10,8 @@ pnpm dev
 ```
 
 The production authority is the Python FastAPI service backed by PostgreSQL. The private Sites Worker is an authenticated gateway only: it forwards `/api/*` requests and contains no persistence, valuation, normalization, or OpenAI logic. Cloudflare D1 and its Worker-era schema are retained temporarily as **LEGACY/BRIDGE** migration artifacts and are not an active or equal persistence path.
+
+Scanner valuations currently use the versioned `ai_provisional_v1` method. They are conservative semantic estimates with ranges, confidence, basis, and uncertainty—not authoritative market facts or permission to transact. Each analysis is retained historically in PostgreSQL so later comparable-based methods can replace the provider without changing the downstream valuation contract.
 
 ## Enforced economics
 

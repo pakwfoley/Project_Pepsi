@@ -80,6 +80,44 @@ class ImageClassification(ContractModel):
     observations: list[str] = Field(max_length=5)
 
 
+class ValuationRange(ContractModel):
+    estimate: int = Field(gt=0)
+    low: int = Field(gt=0)
+    high: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def validate_order(self) -> "ValuationRange":
+        if not self.low <= self.estimate <= self.high:
+            raise ValueError("valuation range must satisfy low <= estimate <= high")
+        return self
+
+
+class ValuationResult(ContractModel):
+    valuationStatus: Literal["available", "insufficient_evidence"]
+    valuationMethod: Literal["ai_provisional_v1"]
+    currency: Literal["USD"]
+    fairMarketValue: ValuationRange | None
+    quickLiquidationValue: ValuationRange | None
+    tradeValue: ValuationRange | None
+    confidence: int = Field(ge=0, le=100)
+    liquidity: Literal["low", "moderate", "high", "unknown"]
+    basis: list[str] = Field(max_length=8)
+    uncertainties: list[str] = Field(max_length=8)
+
+    @model_validator(mode="after")
+    def validate_availability(self) -> "ValuationResult":
+        ranges = (self.fairMarketValue, self.quickLiquidationValue, self.tradeValue)
+        if self.valuationStatus == "available" and any(value is None for value in ranges):
+            raise ValueError("available valuation requires all value ranges")
+        if self.valuationStatus == "insufficient_evidence" and any(value is not None for value in ranges):
+            raise ValueError("insufficient valuation must not fabricate value ranges")
+        return self
+
+
+def insufficient_valuation() -> ValuationResult:
+    return ValuationResult(valuationStatus="insufficient_evidence", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue=None, quickLiquidationValue=None, tradeValue=None, confidence=0, liquidity="unknown", basis=[], uncertainties=["This record predates provisional valuation."])
+
+
 class WatchAnalysis(ContractModel):
     relevant: bool
     identification: Identification
@@ -88,6 +126,7 @@ class WatchAnalysis(ContractModel):
     riskSignals: list[str] = Field(max_length=6)
     completenessAssessment: list[str] = Field(max_length=6)
     valuationObservations: list[str] = Field(max_length=8)
+    valuation: ValuationResult
     missingInformation: list[str] = Field(max_length=8)
     questions: list[str] = Field(max_length=6)
     recommendation: Literal["investigate", "watch", "skip"]

@@ -14,7 +14,7 @@ class Base(DeclarativeBase):
 
 class ScannerCandidate(Base):
     __tablename__ = "scanner_candidates"
-    __table_args__ = (UniqueConstraint("source", "source_listing_id"),)
+    __table_args__ = (UniqueConstraint("owner_id", "source", "source_listing_id", name="uq_scanner_owner_source_listing"),)
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
     owner_id: Mapped[str] = mapped_column(String(255), index=True)
@@ -34,6 +34,19 @@ class ScannerCandidate(Base):
     status: Mapped[str] = mapped_column(String(30), default="new")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ScannerAnalysisRun(Base):
+    __tablename__ = "scanner_analysis_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    candidate_id: Mapped[str] = mapped_column(String(36), index=True)
+    owner_id: Mapped[str] = mapped_column(String(255), index=True)
+    analysis: Mapped[dict] = mapped_column(JSON)
+    valuation: Mapped[dict] = mapped_column(JSON)
+    valuation_method: Mapped[str] = mapped_column(String(40))
+    analysis_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
 
 
 class Listing(Base):

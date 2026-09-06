@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .contracts import ListingIngest, ManualListingInput, WatchAnalysis
-from .database import Listing, ScannerCandidate, Valuation
+from .database import Listing, ScannerAnalysisRun, ScannerCandidate, Valuation
 
 
 def source_listing_id(url: str) -> str:
@@ -25,6 +25,8 @@ def save_analysis(session: Session, owner_id: str, listing: ListingIngest, analy
     candidate.image_metadata = [image.model_dump(exclude={"dataUrl"}) for image in listing.images]
     candidate.analysis = analysis.model_dump(mode="json")
     candidate.analysis_metadata = analysis_metadata or {}
+    session.flush()
+    session.add(ScannerAnalysisRun(candidate_id=candidate.id, owner_id=owner_id, analysis=analysis.model_dump(mode="json"), valuation=analysis.valuation.model_dump(mode="json"), valuation_method=analysis.valuation.valuationMethod, analysis_metadata=analysis_metadata or {}))
     session.commit(); session.refresh(candidate)
     return candidate
 

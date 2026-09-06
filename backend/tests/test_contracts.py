@@ -5,7 +5,7 @@ import pytest
 from PIL import Image
 from pydantic import ValidationError
 
-from project_pepsi.contracts import CapturedImage, ListingIngest, parse_listing_submission
+from project_pepsi.contracts import CapturedImage, ListingIngest, ValuationRange, ValuationResult, parse_listing_submission
 
 
 def image(index: int = 0) -> dict:
@@ -39,3 +39,28 @@ def test_listing_contract_rejects_extension_internal_fields():
 def test_listing_contract_preserves_source_identity():
     listing = ListingIngest.model_validate({"contractVersion": 1, "source": "facebook_marketplace", "sourceListingId": "123", "url": "https://www.facebook.com/marketplace/item/123", "title": "Watch"})
     assert listing.sourceListingId == "123"
+
+
+def test_structured_provisional_valuation_parses():
+    valuation = ValuationResult(valuationStatus="available", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue={"estimate": 950, "low": 750, "high": 1200}, quickLiquidationValue={"estimate": 775, "low": 650, "high": 900}, tradeValue={"estimate": 900, "low": 750, "high": 1050}, confidence=72, liquidity="moderate", basis=["Likely reference identified"], uncertainties=["Service history unverified"])
+    assert valuation.valuationMethod == "ai_provisional_v1"
+    assert valuation.quickLiquidationValue.estimate == 775
+
+
+def test_invalid_valuation_range_and_confidence_are_rejected():
+    with pytest.raises(ValidationError):
+        ValuationRange(estimate=700, low=800, high=1000)
+    with pytest.raises(ValidationError):
+        ValuationResult(valuationStatus="insufficient_evidence", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue=None, quickLiquidationValue=None, tradeValue=None, confidence=101, liquidity="unknown", basis=[], uncertainties=[])
+
+
+def test_unknown_valuation_is_not_zero_value():
+    valuation = ValuationResult(valuationStatus="insufficient_evidence", valuationMethod="ai_provisional_v1", currency="USD", fairMarketValue=None, quickLiquidationValue=None, tradeValue=None, confidence=10, liquidity="unknown", basis=[], uncertainties=["Reference unknown"])
+    assert valuation.fairMarketValue is None
+    assert valuation.quickLiquidationValue is None
+    assert valuation.tradeValue is None
+
+
+def test_model_valuation_cannot_authorize_transaction():
+    with pytest.raises(ValidationError):
+        ValuationResult.model_validate({"valuationStatus": "insufficient_evidence", "valuationMethod": "ai_provisional_v1", "currency": "USD", "fairMarketValue": None, "quickLiquidationValue": None, "tradeValue": None, "confidence": 0, "liquidity": "unknown", "basis": [], "uncertainties": [], "purchaseAuthorized": True})

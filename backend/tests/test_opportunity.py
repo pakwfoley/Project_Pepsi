@@ -11,6 +11,7 @@ def analysis(*, recommendation="investigate", confidence=80, risks=None, missing
         riskSignals=risks or [],
         completenessAssessment=[],
         valuationObservations=[],
+        valuation={"valuationStatus": "insufficient_evidence", "valuationMethod": "ai_provisional_v1", "currency": "USD", "fairMarketValue": None, "quickLiquidationValue": None, "tradeValue": None, "confidence": 0, "liquidity": "unknown", "basis": [], "uncertainties": ["Test fixture"]},
         missingInformation=missing or [],
         questions=[],
         recommendation=recommendation,

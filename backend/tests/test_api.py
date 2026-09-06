@@ -91,6 +91,6 @@ def test_candidate_queue_returns_review_priority():
         app.dependency_overrides.pop(get_session, None)
         db_session.close()
     assert response.status_code == 200
-    assert response.json()["candidates"][0]["reviewPriority"]["valuation_status"] == "valuation_required"
+    assert response.json()["candidates"][0]["reviewPriority"]["valuation_status"] == "insufficient_evidence"
     assert response.json()["candidates"][0]["analysisMetadata"]["latencyMs"] == 1250
     assert response.json()["candidates"][0]["analysisMetadata"]["usage"]["total_tokens"] == 321
